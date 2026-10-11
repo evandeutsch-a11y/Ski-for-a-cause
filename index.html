@@ -82,7 +82,7 @@ option{background:var(--card);color:var(--text)}
     <div class="card"><div class="top" style="margin-bottom:8px"><h2 style="margin:0">Rides</h2><select id="ridesSort" aria-label="Sort rides"><option value="recent">Most recent</option><option value="distance">Longest distance</option></select></div><ul class="list" id="recent"></ul><p class="muted" id="recentEmpty">No rides logged yet.</p><button class="btn ghost" id="moreRides" type="button" hidden style="margin-top:12px">Show more</button></div>
     <div class="card"><div class="top" style="margin-bottom:8px"><h2 style="margin:0">Riders</h2><select id="ridersSort" aria-label="Sort riders"><option value="recent">Newest sign-ups</option><option value="distance">Most distance</option></select></div><p class="muted" style="margin:0 0 8px">Your friends always show first, then up to 25 more riders.</p><ul class="list" id="riders"></ul><p class="muted" id="empty">No riders have signed up yet.</p></div>
     <div class="card"><h2>My rides</h2><ul class="list" id="mine"></ul><p class="muted" id="mineEmpty">You haven't logged any rides yet.</p></div>
-    <div class="card" id="adminCard" hidden><h2>Admin: accounts</h2><ul class="list" id="allAccounts"></ul><p class="muted">Only admin accounts can see this section and delete accounts. Admins also see a Remove button on each ride in Recent rides.</p></div>
+    <div class="card" id="adminCard" hidden><h2>Admin: accounts</h2><ul class="list" id="allAccounts"></ul><p class="muted">Only admin accounts can see this section and delete accounts. Admins can remove any ride, and everyone can remove their own.</p></div>
     </div>
     <div id="profileView" hidden>
       <p><button class="btn ghost" id="back" type="button">&larr; Back</button></p>
@@ -244,7 +244,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
       e.style.alignItems="center";
       var k=document.createElement("span");k.style.cssText="display:flex;align-items:center;gap:10px;white-space:nowrap";
       var km=document.createElement("span");km.textContent=r1(Number(r.km))+" km";k.appendChild(km);
-      if(isAdmin){var b=document.createElement("button");b.className="btn ghost";b.textContent="Remove";b.style.padding="4px 10px";b.onclick=function(){removeRide(r.id)};k.appendChild(b)}
+      if(isAdmin||r.user_id===session.user.id){var b=document.createElement("button");b.className="btn ghost";b.textContent="Remove";b.style.padding="4px 10px";b.onclick=function(){removeRide(r.id)};k.appendChild(b)}
       e.replaceChild(k,e.lastChild);ul.appendChild(e);
     });
   }
@@ -303,7 +303,13 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     });
     var mine=rs.data.filter(function(r){return r.user_id===session.user.id}),m=$("mine");m.innerHTML="";
     $("mineEmpty").hidden=mine.length>0;
-    mine.forEach(function(r){m.appendChild(li(r.ride_date+(r.note?" · "+r.note:""),r1(Number(r.km))+" km"))});
+    mine.forEach(function(r){
+      var e=li(r.ride_date+(r.note?" · "+r.note:""),"");e.style.alignItems="center";
+      var k=document.createElement("span");k.style.cssText="display:flex;align-items:center;gap:10px;white-space:nowrap";
+      var km=document.createElement("span");km.textContent=r1(Number(r.km))+" km";k.appendChild(km);
+      var b=document.createElement("button");b.className="btn ghost";b.textContent="Remove";b.style.padding="4px 10px";b.onclick=function(){removeRide(r.id)};k.appendChild(b);
+      e.replaceChild(k,e.lastChild);m.appendChild(e);
+    });
     var rq=Object.keys(links).filter(function(id){return links[id].status==="pending"&&links[id].addressee===session.user.id&&profiles[id]});
     $("reqCard").hidden=rq.length===0;var rlst=$("reqList");rlst.innerHTML="";
     rq.forEach(function(id){
@@ -330,7 +336,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
       t.appendChild(nb);t.appendChild(sub);l.appendChild(t);
       var k=document.createElement("span");k.style.cssText="display:flex;align-items:center;gap:10px;white-space:nowrap";
       var km=document.createElement("span");km.textContent=r1(Number(r.km))+" km";k.appendChild(km);
-      if(isAdmin){var b=document.createElement("button");b.className="btn ghost";b.textContent="Remove";b.style.padding="4px 10px";b.onclick=function(){removeRide(r.id)};k.appendChild(b)}
+      if(isAdmin||r.user_id===session.user.id){var b=document.createElement("button");b.className="btn ghost";b.textContent="Remove";b.style.padding="4px 10px";b.onclick=function(){removeRide(r.id)};k.appendChild(b)}
       e.appendChild(l);e.appendChild(k);rl.appendChild(e);
     });
     $("moreRides").hidden=rs.data.length<=recentShown;
