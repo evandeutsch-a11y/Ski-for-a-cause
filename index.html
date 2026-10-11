@@ -29,6 +29,7 @@ input,textarea{width:100%;font-family:inherit;padding:11px;border:1px solid var(
 .link{background:none;border:0;color:var(--accent);cursor:pointer;font-size:.9rem;padding:0;text-decoration:underline}
 .av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-weight:700;overflow:hidden;flex:none}
 .av img{width:100%;height:100%;object-fit:cover}
+select{padding:8px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:.9rem;font-family:inherit}
 .btn.danger{background:var(--bad);color:#fff;border:0}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
 .modalBox{background:var(--card);border-radius:14px;padding:18px;max-width:340px;width:100%}
@@ -60,6 +61,7 @@ input,textarea{width:100%;font-family:inherit;padding:11px;border:1px solid var(
   <div id="app" hidden>
     <div id="home">
     <div class="card hero"><div>In total we have skied &amp; snowboarded</div><div class="big"><span id="total">0</span> km!</div></div>
+    <div class="card" id="reqCard" hidden><h2>Friend requests</h2><ul class="list" id="reqList"></ul></div>
     <div class="card">
       <h2>Log a ride</h2>
       <form id="rideForm">
@@ -69,8 +71,8 @@ input,textarea{width:100%;font-family:inherit;padding:11px;border:1px solid var(
         <button class="btn" type="submit">Log this ride</button>
       </form>
     </div>
-    <div class="card"><h2>Riders</h2><ul class="list" id="riders"></ul><p class="muted" id="empty">No rides logged yet. Be the first!</p></div>
-    <div class="card"><h2>Recent rides</h2><ul class="list" id="recent"></ul><p class="muted" id="recentEmpty">No rides logged yet.</p><button class="btn ghost" id="moreRides" type="button" hidden style="margin-top:12px">Show more</button></div>
+    <div class="card"><div class="top" style="margin-bottom:8px"><h2 style="margin:0">Rides</h2><select id="ridesSort" aria-label="Sort rides"><option value="recent">Most recent</option><option value="distance">Longest distance</option></select></div><ul class="list" id="recent"></ul><p class="muted" id="recentEmpty">No rides logged yet.</p><button class="btn ghost" id="moreRides" type="button" hidden style="margin-top:12px">Show more</button></div>
+    <div class="card"><div class="top" style="margin-bottom:8px"><h2 style="margin:0">Riders</h2><select id="ridersSort" aria-label="Sort riders"><option value="recent">Newest sign-ups</option><option value="distance">Most distance</option></select></div><p class="muted" style="margin:0 0 8px">Your friends always show first, then up to 25 more riders.</p><ul class="list" id="riders"></ul><p class="muted" id="empty">No riders have signed up yet.</p></div>
     <div class="card"><h2>My rides</h2><ul class="list" id="mine"></ul><p class="muted" id="mineEmpty">You haven't logged any rides yet.</p></div>
     <div class="card" id="adminCard" hidden><h2>Admin: accounts</h2><ul class="list" id="allAccounts"></ul><p class="muted">Only admin accounts can see this section and delete accounts. Admins also see a Remove button on each ride in Recent rides.</p></div>
     </div>
@@ -112,7 +114,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   say("Setup needed: open config.js and paste in your Supabase Project URL and publishable key.","err");
 } else {
   var sb=supabase.createClient(C.SUPABASE_URL,C.SUPABASE_KEY);
-  var signup=false,session=null,isAdmin=false,profiles={},lastRides=[],viewing=null,recentShown=25;
+  var signup=false,session=null,isAdmin=false,profiles={},lastRides=[],viewing=null,recentShown=25,friends={},links={},ridesSort="recent",ridersSort="recent";
 
   function setMode(s){
     signup=s;
@@ -217,6 +219,15 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     var t=document.createElement("div");t.className="muted";t.textContent=r1(tot)+" km logged";info.appendChild(t);
     top.appendChild(info);c.appendChild(top);
     if(p.bio){var b=document.createElement("p");b.textContent=p.bio;b.style.whiteSpace="pre-wrap";c.appendChild(b)}
+    if(!mine){
+      var vid=viewing,lk=links[vid],row=document.createElement("p");row.style.cssText="display:flex;gap:8px;flex-wrap:wrap";
+      var mk=function(t,cls,fn){var bt=document.createElement("button");bt.className=cls;bt.textContent=t;bt.onclick=fn;row.appendChild(bt)};
+      if(lk&&lk.status==="accepted"){mk("★ Friends · Unfriend","btn ghost",function(){if(confirm("Remove "+p.display_name+" from your friends?"))dropLink(vid,"Removed from your friends.")})}
+      else if(lk&&lk.addressee===session.user.id){mk("Accept friend request","btn",function(){answerRequest(vid,true)});mk("Decline","btn ghost",function(){answerRequest(vid,false)})}
+      else if(lk){mk("Friend request sent · Cancel","btn ghost",function(){dropLink(vid,"Friend request cancelled.")})}
+      else{mk("Add friend","btn",function(){sendRequest(vid)})}
+      c.appendChild(row);
+    }
     $("editCard").hidden=!mine;
     var ul=$("profRides");ul.innerHTML="";
     $("profNoRides").hidden=rides.length>0;
@@ -261,35 +272,52 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
 
   async function refresh(){
     var rs=await sb.from("rides").select("id,user_id,km,ride_date,note,created_at").order("ride_date",{ascending:false}).order("created_at",{ascending:false});
-    var ps=await sb.from("profiles").select("id,display_name,bio,avatar_url");
+    var ps=await sb.from("profiles").select("id,display_name,bio,avatar_url,created_at");
+    var fr=await sb.from("friend_links").select("requester,addressee,status");friends={};links={};
+    if(!fr.error&&fr.data)fr.data.forEach(function(x){var o=x.requester===session.user.id?x.addressee:x.requester;links[o]=x;if(x.status==="accepted")friends[o]=true});
     if(rs.error||ps.error){say("Couldn't load rides right now.","err");return}
     var names={};profiles={};lastRides=rs.data;ps.data.forEach(function(p){names[p.id]=p.display_name;profiles[p.id]=p});
     var sum=0,by={};
     rs.data.forEach(function(r){var k=Number(r.km)||0;sum+=k;by[r.user_id]=(by[r.user_id]||0)+k});
     $("total").textContent=r1(sum).toLocaleString();
     var ul=$("riders");ul.innerHTML="";
-    var ids=Object.keys(by).sort(function(a,b){return by[b]-by[a]});
+    var all=Object.keys(profiles),newest=function(a,b){return (profiles[b].created_at||"").localeCompare(profiles[a].created_at||"")},far=function(a,b){return (by[b]||0)-(by[a]||0)||newest(a,b)},cmp=ridersSort==="distance"?far:newest;
+    var ids=all.filter(function(id){return friends[id]}).sort(cmp).concat(all.filter(function(id){return !friends[id]}).sort(cmp).slice(0,25));
     $("empty").hidden=ids.length>0;
     ids.forEach(function(id){
       var e=document.createElement("li");e.style.alignItems="center";
       var l=document.createElement("span");l.style.cssText="display:flex;align-items:center;gap:10px";
       l.appendChild(avatar(profiles[id],36));
-      var b=document.createElement("button");b.className="link";b.style.fontSize="1rem";b.textContent=names[id]||"Someone";b.onclick=function(){openProfile(id)};
+      var b=document.createElement("button");b.className="link";b.style.fontSize="1rem";b.textContent=(friends[id]?"★ ":"")+(names[id]||"Someone");b.onclick=function(){openProfile(id)};
       l.appendChild(b);
-      var k=document.createElement("span");k.textContent=r1(by[id])+" km";
+      var k=document.createElement("span");k.textContent=r1(by[id]||0)+" km";
       e.appendChild(l);e.appendChild(k);ul.appendChild(e);
     });
     var mine=rs.data.filter(function(r){return r.user_id===session.user.id}),m=$("mine");m.innerHTML="";
     $("mineEmpty").hidden=mine.length>0;
     mine.forEach(function(r){m.appendChild(li(r.ride_date+(r.note?" · "+r.note:""),r1(Number(r.km))+" km"))});
+    var rq=Object.keys(links).filter(function(id){return links[id].status==="pending"&&links[id].addressee===session.user.id&&profiles[id]});
+    $("reqCard").hidden=rq.length===0;var rlst=$("reqList");rlst.innerHTML="";
+    rq.forEach(function(id){
+      var e=document.createElement("li");e.style.alignItems="center";
+      var l=document.createElement("span");l.style.cssText="display:flex;align-items:center;gap:10px";
+      l.appendChild(avatar(profiles[id],36));
+      var nb=document.createElement("button");nb.className="link";nb.style.fontSize="1rem";nb.textContent=names[id]||"Someone";nb.onclick=function(){openProfile(id)};l.appendChild(nb);
+      var k=document.createElement("span");k.style.cssText="display:flex;gap:8px";
+      var ok=document.createElement("button");ok.className="btn";ok.textContent="Accept";ok.style.padding="4px 10px";ok.onclick=function(){answerRequest(id,true)};
+      var no=document.createElement("button");no.className="btn ghost";no.textContent="Decline";no.style.padding="4px 10px";no.onclick=function(){answerRequest(id,false)};
+      k.appendChild(ok);k.appendChild(no);e.appendChild(l);e.appendChild(k);rlst.appendChild(e);
+    });
+    var rideList=rs.data.slice();
+    if(ridesSort==="distance")rideList.sort(function(a,b){return (Number(b.km)-Number(a.km))||(b.ride_date||"").localeCompare(a.ride_date||"")});
     var rl=$("recent");rl.innerHTML="";
     $("recentEmpty").hidden=rs.data.length>0;
-    rs.data.slice(0,recentShown).forEach(function(r){
+    rideList.slice(0,recentShown).forEach(function(r){
       var e=document.createElement("li");e.style.alignItems="center";
       var l=document.createElement("span");l.style.cssText="display:flex;align-items:center;gap:10px;min-width:0";
       l.appendChild(avatar(profiles[r.user_id],32));
       var t=document.createElement("span");
-      var nb=document.createElement("button");nb.className="link";nb.style.fontSize="1rem";nb.textContent=names[r.user_id]||"Someone";nb.onclick=function(){openProfile(r.user_id)};
+      var nb=document.createElement("button");nb.className="link";nb.style.fontSize="1rem";nb.textContent=(friends[r.user_id]?"★ ":"")+(names[r.user_id]||"Someone");nb.onclick=function(){openProfile(r.user_id)};
       var sub=document.createElement("div");sub.className="muted";sub.textContent=r.ride_date+(r.note?" · "+r.note:"");
       t.appendChild(nb);t.appendChild(sub);l.appendChild(t);
       var k=document.createElement("span");k.style.cssText="display:flex;align-items:center;gap:10px;white-space:nowrap";
@@ -325,6 +353,25 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   }
 
   $("moreRides").onclick=function(){recentShown+=25;refresh()};
+  $("ridesSort").onchange=function(){ridesSort=this.value;recentShown=25;refresh()};
+  $("ridersSort").onchange=function(){ridersSort=this.value;refresh()};
+
+  async function sendRequest(id){
+    var r=await sb.from("friend_links").insert({addressee:id});
+    if(r.error){say("Couldn't send the request. Please try again.","err");return}
+    say("Friend request sent.","ok");refresh();
+  }
+  async function dropLink(id,msg){
+    var l=links[id];if(!l)return;
+    var r=await sb.from("friend_links").delete().eq("requester",l.requester).eq("addressee",l.addressee).select();
+    if(r.error||!r.data||!r.data.length){say("Couldn't update that. Please try again.","err");return}
+    say(msg,"ok");refresh();
+  }
+  async function answerRequest(id,accept){
+    var r=accept?await sb.rpc("accept_friend_request",{from_user:id}):await sb.from("friend_links").delete().eq("requester",id).eq("addressee",session.user.id).select();
+    if(r.error||(!accept&&(!r.data||!r.data.length))){say("Couldn't update that request. Please try again.","err");return}
+    say(accept?"Friend request accepted.":"Friend request declined.","ok");refresh();
+  }
 
   async function removeRide(id){
     if(!confirm("Remove this ride? This can't be undone."))return;
