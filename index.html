@@ -67,7 +67,7 @@ option{background:var(--card);color:var(--text)}
     <div class="card">
       <h2>Log a ride</h2>
       <form id="rideForm">
-        <div><label for="gpx">Import a Slopes GPX file (optional)</label><input id="gpx" type="file" accept=".gpx,application/gpx+xml,text/xml"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes, open a recording, tap the &#8943; menu, choose Export As, then GPX. The file is read in your browser and is not uploaded; only the distance is saved.</p></div>
+        <div><label for="gpx">Import a Slopes GPX file (optional)</label><input id="gpx" type="file"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes, open a recording, tap the &#8943; menu, choose Export As, then GPX. The file is read in your browser and is not uploaded; only the distance is saved.</p></div>
         <input id="km" type="number" min="0.1" max="500" step="0.1" required placeholder="Distance (km) from your tracking app">
         <input id="date" type="date" required>
         <input id="note" maxlength="80" placeholder="Where did you ride? (optional)">
@@ -376,17 +376,24 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   function analyzeGpx(text){
     var doc=new DOMParser().parseFromString(text,"application/xml");
     if(doc.getElementsByTagName("parsererror").length)throw new Error("bad file");
-    var segs=[],ts=doc.getElementsByTagName("trkseg");
-    for(var i=0;i<ts.length;i++){
-      var tp=ts[i].getElementsByTagName("trkpt"),P=[];
-      for(var j=0;j<tp.length;j++){
-        var e=tp[j],lat=parseFloat(e.getAttribute("lat")),lon=parseFloat(e.getAttribute("lon"));
+    var tag=function(root,n){return root.getElementsByTagNameNS("*",n)};
+    function readPts(list){
+      var P=[];
+      for(var j=0;j<list.length;j++){
+        var e=list[j],lat=parseFloat(e.getAttribute("lat")),lon=parseFloat(e.getAttribute("lon"));
         if(isNaN(lat)||isNaN(lon))continue;
-        var ee=e.getElementsByTagName("ele")[0],te=e.getElementsByTagName("time")[0];
+        var ee=tag(e,"ele")[0],te=tag(e,"time")[0];
         var ele=ee?parseFloat(ee.textContent):NaN,tm=te?Date.parse(te.textContent):NaN;
         P.push({lat:lat,lon:lon,ele:isNaN(ele)?null:ele,tm:isNaN(tm)?null:tm});
       }
-      segs.push(P);
+      return P;
+    }
+    var segs=[],ts=tag(doc,"trkseg");
+    for(var i=0;i<ts.length;i++)segs.push(readPts(tag(ts[i],"trkpt")));
+    if(!segs.some(function(P){return P.length>1})){
+      var loose=readPts(tag(doc,"trkpt"));
+      if(loose.length>1)segs=[loose];
+      else{var rte=readPts(tag(doc,"rtept"));if(rte.length>1)segs=[rte]}
     }
     return analyzePoints(segs);
   }
@@ -395,12 +402,12 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     if(f.size>15*1024*1024){info.textContent="That file is too large (15 MB max).";this.value="";return}
     try{
       var r=analyzeGpx(await f.text());
-      if(!r.pts||r.all<=0){info.textContent="Couldn't find a GPS track in that file. Please export it from Slopes as a GPX file.";return}
+      if(!r.pts||r.all<=0){info.textContent="Read \""+f.name+"\" ("+Math.round(f.size/1024)+" KB) but found no GPS track points in it. Try exporting again from Slopes as GPX, and if it still fails tell me the export type you chose.";return}
       var est=r.down>0?r.down:r.all;
       $("km").value=r1(est);
       if(r.first){var dd=new Date(r.first);$("date").value=dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0")}
       info.textContent="Estimated "+r1(est)+" km on the snow (lifts left out). The whole file is "+r1(r.all)+" km including lifts. Compare this with your Slopes stats and change the number if it looks off.";
-    }catch(err){info.textContent="Couldn't read that file. Please export it from Slopes as a GPX file and try again."}
+    }catch(err){info.textContent="Couldn't read \""+(f&&f.name)+"\" as a GPX file. In Slopes choose Export As, then GPX, and try again."}
   };
 
   $("moreRides").onclick=function(){recentShown+=25;refresh()};
