@@ -4,37 +4,46 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Shred for a Cause</title>
+<script>try{var t=localStorage.getItem("shred-theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 <style>
-:root{--bg:#f4f8fc;--card:#fff;--text:#14233a;--muted:#5b6b82;--accent:#1d6fe0;--accent2:#12b5a6;--border:#d3dfec;--bad:#c0392b}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1826;--card:#18253a;--text:#e8eef7;--muted:#9fb0c8;--accent:#5aa2ff;--accent2:#35d0c0;--border:#2a3b57;--bad:#ff7a6b}}
+:root{color-scheme:light;--bg:#eaf6f8;--card:#fdfeff;--text:#143036;--muted:#557680;--accent:#1a7f98;--accent2:#3f9d86;--purple:#6d5c9c;--border:#cfe5ea;--bad:#b83b2e;--on-accent:#fff;--shadow:0 6px 20px rgba(20,48,54,.09);--title:#0e3b47;--sky1:#c9e8f1;--sky2:#eaf6f8;--cloud:#fff;--m1:#bfe0ea;--m2:#9ccfde;--m3:#78b8cc;--ice:#d8f0f4;--water:#86d0d4;--t1:#3e7d6a;--t2:#5d5088;--t3:#2f6f8f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1b24;--card:#15293a;--text:#e6f1f4;--muted:#9db8c2;--accent:#4cc3d9;--accent2:#6fcfa4;--purple:#a393d6;--border:#25405a;--bad:#ff8a7a;--on-accent:#04222b;--shadow:0 6px 20px rgba(0,0,0,.35);--title:#e6f1f4;--sky1:#10303f;--sky2:#0d1b24;--cloud:#1d3f52;--m1:#17465a;--m2:#1d5a70;--m3:#26708a;--ice:#1b3f50;--water:#1f6f7c;--t1:#2a5a4c;--t2:#47406e;--t3:#25526b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0d1b24;--card:#15293a;--text:#e6f1f4;--muted:#9db8c2;--accent:#4cc3d9;--accent2:#6fcfa4;--purple:#a393d6;--border:#25405a;--bad:#ff8a7a;--on-accent:#04222b;--shadow:0 6px 20px rgba(0,0,0,.35);--title:#e6f1f4;--sky1:#10303f;--sky2:#0d1b24;--cloud:#1d3f52;--m1:#17465a;--m2:#1d5a70;--m3:#26708a;--ice:#1b3f50;--water:#1f6f7c;--t1:#2a5a4c;--t2:#47406e;--t3:#25526b;color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.5}
-.wrap{max-width:720px;margin:0 auto;padding:20px 16px 48px}
-h1{font-size:1.9rem;margin:8px 0 16px}h2{font-size:1.15rem;margin:0 0 12px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px}
-.hero{text-align:center;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:0}
+.scene{position:absolute;top:0;left:0;right:0;height:320px;z-index:0;pointer-events:none;overflow:hidden}
+.scene svg{width:100%;height:100%;display:block}
+.foot{display:block;width:100%;height:110px;margin-top:-20px;pointer-events:none}
+.wrap{position:relative;z-index:1;max-width:760px;margin:0 auto;padding:24px 16px 56px}
+.wrap>.top{margin-bottom:104px}
+h1{font-size:2rem;margin:8px 0;color:var(--title);letter-spacing:-.5px}
+h2{font-size:1.15rem;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:5px;height:1.05em;border-radius:3px;background:linear-gradient(var(--accent),var(--purple));flex:none}
+.card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:16px;box-shadow:var(--shadow)}
+.hero{text-align:center;background:linear-gradient(135deg,var(--accent),var(--purple));color:var(--on-accent);border:0}
 .hero .big{font-size:3rem;font-weight:800;line-height:1.1}
-.btn{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:11px 18px;font-size:1rem;font-weight:600;cursor:pointer}
-.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--border)}
+.btn{background:var(--accent);color:var(--on-accent);border:0;border-radius:999px;padding:11px 20px;font-size:1rem;font-weight:600;cursor:pointer}
+.btn.ghost{background:var(--card);color:var(--accent);border:1px solid var(--border)}
 .btn:disabled{opacity:.6;cursor:default}
 .list{list-style:none;margin:0;padding:0}
-.list li{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.list li{display:flex;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)}
 .list li:last-child{border-bottom:0}
 .muted{color:var(--muted);font-size:.85rem}
 form{display:grid;gap:10px}
 label{font-size:.85rem;color:var(--muted)}
-input,textarea{width:100%;font-family:inherit;padding:11px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:1rem}
-.msg{margin:0 0 12px;font-size:1rem;padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--card)}.msg.err{color:var(--bad);border-color:var(--bad)}.msg.ok{border-color:var(--accent2)}
+input,textarea{width:100%;font-family:inherit;padding:11px 12px;border:1px solid var(--border);border-radius:12px;background:var(--bg);color:var(--text);font-size:1rem}
+input:focus,textarea:focus{outline:2px solid var(--accent2);outline-offset:1px}
+.msg{margin:0 0 12px;font-size:1rem;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:var(--card);box-shadow:var(--shadow)}.msg.err{color:var(--bad);border-color:var(--bad)}.msg.ok{border-color:var(--accent2)}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .link{background:none;border:0;color:var(--accent);cursor:pointer;font-size:.9rem;padding:0;text-decoration:underline}
-.av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-weight:700;overflow:hidden;flex:none}
+.av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--purple));color:var(--on-accent);font-weight:700;overflow:hidden;flex:none}
 .av img{width:100%;height:100%;object-fit:cover}
-select{appearance:none;-webkit-appearance:none;padding:8px 32px 8px 12px;border:1px solid var(--accent);border-radius:10px;background-color:var(--card);color:var(--accent);font-weight:600;font-size:.9rem;font-family:inherit;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--accent) 50%),linear-gradient(135deg,var(--accent) 50%,transparent 50%);background-position:calc(100% - 17px) 55%,calc(100% - 12px) 55%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+select{appearance:none;-webkit-appearance:none;padding:8px 32px 8px 12px;border:1px solid var(--accent);border-radius:999px;background-color:var(--card);color:var(--accent);font-weight:600;font-size:.9rem;font-family:inherit;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--accent) 50%),linear-gradient(135deg,var(--accent) 50%,transparent 50%);background-position:calc(100% - 17px) 55%,calc(100% - 12px) 55%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
 select:focus{outline:2px solid var(--accent2);outline-offset:1px}
 option{background:var(--card);color:var(--text)}
-.btn.danger{background:var(--bad);color:#fff;border:0}
+.btn.danger{background:var(--bad);color:var(--on-accent);border:0}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
-.modalBox{background:var(--card);border-radius:14px;padding:18px;max-width:340px;width:100%}
+.modalBox{background:var(--card);border-radius:18px;padding:18px;max-width:340px;width:100%}
 .cropWrap{position:relative;width:300px;height:300px;max-width:100%;margin:0 auto;overflow:hidden;border-radius:8px;background:#000}
 #cropCanvas{display:block;touch-action:none;cursor:grab}
 .cropMask{position:absolute;inset:0;pointer-events:none;border-radius:50%;box-shadow:0 0 0 999px rgba(0,0,0,.55)}
@@ -42,8 +51,46 @@ option{background:var(--card);color:var(--text)}
 </style>
 </head>
 <body>
+<div class="scene" aria-hidden="true">
+<svg viewBox="0 0 1200 320" preserveAspectRatio="xMidYMin slice" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--sky1)"/><stop offset="1" style="stop-color:var(--sky2)"/></linearGradient>
+    <symbol id="pine" viewBox="0 0 40 72">
+      <polygon points="20,0 34,24 6,24" fill="currentColor"/><polygon points="20,14 37,42 3,42" fill="currentColor"/><polygon points="20,30 40,62 0,62" fill="currentColor"/>
+      <rect x="17" y="62" width="6" height="10" fill="currentColor" opacity=".8"/>
+      <polygon points="20,0 25,9 15,9" fill="#fff" opacity=".55"/><polygon points="20,14 26,24 14,24" fill="#fff" opacity=".35"/>
+    </symbol>
+  </defs>
+  <rect width="1200" height="320" fill="url(#sky)"/>
+  <g style="fill:var(--cloud)" opacity=".95">
+    <ellipse cx="190" cy="70" rx="95" ry="26"/><ellipse cx="140" cy="86" rx="70" ry="20"/><ellipse cx="250" cy="84" rx="70" ry="20"/>
+    <ellipse cx="830" cy="52" rx="100" ry="28"/><ellipse cx="780" cy="70" rx="68" ry="20"/><ellipse cx="895" cy="68" rx="62" ry="18"/>
+    <ellipse cx="1060" cy="108" rx="70" ry="18"/><ellipse cx="520" cy="95" rx="60" ry="16"/>
+  </g>
+  <polygon points="0,240 120,160 220,210 340,130 470,215 600,170 720,225 860,120 990,205 1100,155 1200,210 1200,320 0,320" style="fill:var(--m1)"/>
+  <polygon points="820,250 880,125 960,100 1040,150 1070,250" style="fill:var(--m2)"/>
+  <polygon points="880,125 960,100 940,170 900,200" style="fill:var(--m3)" opacity=".55"/>
+  <polygon points="0,272 150,205 280,252 430,190 580,258 700,218 850,266 1000,208 1200,262 1200,320 0,320" style="fill:var(--m2)" opacity=".92"/>
+  <path d="M0,284 C200,262 380,298 600,280 C820,262 1000,296 1200,276 L1200,320 L0,320 Z" style="fill:var(--ice)"/>
+  <path d="M-20,300 C200,288 420,312 640,298 C860,286 1040,308 1220,294 L1220,320 L-20,320 Z" style="fill:var(--water)"/>
+  <path d="M0,309 C260,296 520,318 760,306 C960,294 1100,314 1200,304 L1200,320 L0,320 Z" style="fill:var(--bg)"/>
+  <use href="#pine" x="30" y="220" width="46" height="83" style="color:var(--t1)"/>
+  <use href="#pine" x="70" y="235" width="38" height="68" style="color:var(--t2)"/>
+  <use href="#pine" x="105" y="225" width="52" height="94" style="color:var(--t3)"/>
+  <use href="#pine" x="150" y="245" width="36" height="65" style="color:var(--t1)"/>
+  <use href="#pine" x="430" y="262" width="28" height="50" style="color:var(--t3)"/>
+  <use href="#pine" x="470" y="268" width="24" height="43" style="color:var(--t1)"/>
+  <use href="#pine" x="700" y="265" width="26" height="47" style="color:var(--t2)"/>
+  <use href="#pine" x="760" y="270" width="22" height="40" style="color:var(--t3)"/>
+  <use href="#pine" x="980" y="225" width="50" height="90" style="color:var(--t2)"/>
+  <use href="#pine" x="1030" y="215" width="60" height="108" style="color:var(--t1)"/>
+  <use href="#pine" x="1085" y="240" width="40" height="72" style="color:var(--t3)"/>
+  <use href="#pine" x="1130" y="222" width="54" height="97" style="color:var(--t2)"/>
+  <use href="#pine" x="1165" y="245" width="36" height="65" style="color:var(--t1)"/>
+</svg>
+</div>
 <div class="wrap">
-  <div class="top"><h1>Shred for a Cause</h1><div><button class="btn ghost" id="myprof" hidden>My profile</button> <button class="btn ghost" id="logout" hidden>Log out</button></div></div>
+  <div class="top"><h1>Shred for a Cause</h1><div><button class="btn ghost" id="themeBtn" type="button">Dark mode</button> <button class="btn ghost" id="myprof" hidden>My profile</button> <button class="btn ghost" id="logout" hidden>Log out</button></div></div>
   <p class="msg" id="msg" hidden></p>
 
   <!-- Signed-out view -->
@@ -111,6 +158,41 @@ option{background:var(--card);color:var(--text)}
   </div>
 </div>
 
+<svg class="foot" viewBox="0 0 1200 120" preserveAspectRatio="xMidYMax slice" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <use href="#pine" x="-10" y="66" width="30" height="54" style="color:var(--t1)"/>
+  <use href="#pine" x="24" y="53" width="39" height="70" style="color:var(--t2)"/>
+  <use href="#pine" x="69" y="40" width="48" height="86" style="color:var(--t3)"/>
+  <use href="#pine" x="103" y="26" width="57" height="103" style="color:var(--t1)"/>
+  <use href="#pine" x="148" y="54" width="38" height="68" style="color:var(--t2)"/>
+  <use href="#pine" x="182" y="40" width="47" height="85" style="color:var(--t3)"/>
+  <use href="#pine" x="227" y="27" width="56" height="101" style="color:var(--t1)"/>
+  <use href="#pine" x="261" y="54" width="37" height="67" style="color:var(--t2)"/>
+  <use href="#pine" x="306" y="41" width="46" height="83" style="color:var(--t3)"/>
+  <use href="#pine" x="340" y="28" width="55" height="99" style="color:var(--t1)"/>
+  <use href="#pine" x="385" y="55" width="36" height="65" style="color:var(--t2)"/>
+  <use href="#pine" x="419" y="42" width="45" height="81" style="color:var(--t3)"/>
+  <use href="#pine" x="464" y="29" width="54" height="97" style="color:var(--t1)"/>
+  <use href="#pine" x="498" y="66" width="35" height="63" style="color:var(--t2)"/>
+  <use href="#pine" x="543" y="43" width="44" height="79" style="color:var(--t3)"/>
+  <use href="#pine" x="577" y="30" width="53" height="95" style="color:var(--t1)"/>
+  <use href="#pine" x="622" y="67" width="34" height="61" style="color:var(--t2)"/>
+  <use href="#pine" x="656" y="44" width="43" height="77" style="color:var(--t3)"/>
+  <use href="#pine" x="701" y="30" width="52" height="94" style="color:var(--t1)"/>
+  <use href="#pine" x="735" y="68" width="33" height="59" style="color:var(--t2)"/>
+  <use href="#pine" x="780" y="44" width="42" height="76" style="color:var(--t3)"/>
+  <use href="#pine" x="814" y="31" width="51" height="92" style="color:var(--t1)"/>
+  <use href="#pine" x="859" y="68" width="32" height="58" style="color:var(--t2)"/>
+  <use href="#pine" x="893" y="55" width="41" height="74" style="color:var(--t3)"/>
+  <use href="#pine" x="938" y="32" width="50" height="90" style="color:var(--t1)"/>
+  <use href="#pine" x="972" y="69" width="31" height="56" style="color:var(--t2)"/>
+  <use href="#pine" x="1017" y="56" width="40" height="72" style="color:var(--t3)"/>
+  <use href="#pine" x="1051" y="33" width="49" height="88" style="color:var(--t1)"/>
+  <use href="#pine" x="1096" y="70" width="30" height="54" style="color:var(--t2)"/>
+  <use href="#pine" x="1130" y="57" width="39" height="70" style="color:var(--t3)"/>
+  <use href="#pine" x="1175" y="34" width="48" height="86" style="color:var(--t1)"/>
+  <use href="#pine" x="1209" y="20" width="57" height="103" style="color:var(--t2)"/>
+  <rect x="0" y="112" width="1200" height="8" style="fill:var(--ice)"/>
+</svg>
 <div id="cropModal" class="modal" hidden><div class="modalBox">
   <h2>Adjust your photo</h2>
   <p class="muted">Drag the photo to move it and use the slider to zoom. The circle shows what others will see.</p>
@@ -631,6 +713,18 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   setMode(false);
   sb.auth.getSession().then(function(r){show(r.data.session)});
 }
+</script>
+<script>
+(function(){
+  var root=document.documentElement,btn=document.getElementById("themeBtn");
+  if(!btn)return;
+  var mq=window.matchMedia("(prefers-color-scheme: dark)");
+  function isDark(){var t=root.getAttribute("data-theme");return t?t==="dark":mq.matches}
+  function label(){btn.textContent=isDark()?"Light mode":"Dark mode"}
+  btn.onclick=function(){var next=isDark()?"light":"dark";root.setAttribute("data-theme",next);try{localStorage.setItem("shred-theme",next)}catch(e){}label()};
+  if(mq.addEventListener)mq.addEventListener("change",label);
+  label();
+})();
 </script>
 </body>
 </html>
