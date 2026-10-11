@@ -67,8 +67,13 @@ option{background:var(--card);color:var(--text)}
     <div class="card">
       <h2>Log a ride</h2>
       <form id="rideForm">
-        <div><label for="gpx">Import a Slopes GPX file (optional)</label><input id="gpx" type="file"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes, open a recording, tap the &#8943; menu, choose Export As, then GPX. The file is read in your browser and is not uploaded; only the distance is saved.</p></div>
+        <div><label for="gpx">Import a GPX file from Slopes, Strava, Garmin or another tracker (optional)</label><input id="gpx" type="file"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes: open a recording, tap the &#8943; menu, choose Export As, then GPX. Other apps have their own GPX export. The file is read in your browser and is not uploaded; only the distance is saved.</p></div>
         <input id="km" type="number" min="0.1" max="500" step="0.1" required placeholder="Distance (km) from your tracking app">
+        <div id="actualRow" hidden>
+          <label for="actualKm">Actual distance from your tracking app (optional, must be within 20 km of the estimate)</label>
+          <input id="actualKm" type="number" min="0.1" max="500" step="0.1" placeholder="Leave blank to use the estimate">
+          <button class="link" id="clearGpx" type="button" style="margin-top:6px">Remove imported file and enter distance manually</button>
+        </div>
         <input id="date" type="date" required>
         <input id="note" maxlength="80" placeholder="Where did you ride? (optional)">
         <button class="btn" type="submit">Log this ride</button>
@@ -397,17 +402,20 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     }
     return analyzePoints(segs);
   }
+  var gpxEst=null,gpxHelp=$("gpxInfo").textContent;
+  function resetGpx(){gpxEst=null;$("km").readOnly=false;$("actualRow").hidden=true;$("actualKm").value="";$("gpx").value="";$("gpxInfo").textContent=gpxHelp}
+  $("clearGpx").onclick=function(){resetGpx();$("km").value=""};
   $("gpx").onchange=async function(){
     var f=this.files[0],info=$("gpxInfo");if(!f)return;
     if(f.size>15*1024*1024){info.textContent="That file is too large (15 MB max).";this.value="";return}
     try{
       var r=analyzeGpx(await f.text());
-      if(!r.pts||r.all<=0){info.textContent="Read \""+f.name+"\" ("+Math.round(f.size/1024)+" KB) but found no GPS track points in it. Try exporting again from Slopes as GPX, and if it still fails tell me the export type you chose.";return}
+      if(!r.pts||r.all<=0){gpxEst=null;$("km").readOnly=false;$("actualRow").hidden=true;info.textContent="Read \""+f.name+"\" ("+Math.round(f.size/1024)+" KB) but found no GPS track points in it. Try exporting again from Slopes as GPX, and if it still fails tell me the export type you chose.";return}
       var est=r.down>0?r.down:r.all;
-      $("km").value=r1(est);
+      gpxEst=r1(est);$("km").value=gpxEst;$("km").readOnly=true;$("actualRow").hidden=false;$("actualKm").value="";
       if(r.first){var dd=new Date(r.first);$("date").value=dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0")}
-      info.textContent="Estimated "+r1(est)+" km on the snow (lifts left out). The whole file is "+r1(r.all)+" km including lifts. Compare this with your Slopes stats and change the number if it looks off.";
-    }catch(err){info.textContent="Couldn't read \""+(f&&f.name)+"\" as a GPX file. In Slopes choose Export As, then GPX, and try again."}
+      info.textContent="Estimated "+r1(est)+" km on the snow (lifts left out). The whole file is "+r1(r.all)+" km including lifts. If you know the exact figure from your app, enter it below (it must be within 20 km of this estimate).";
+    }catch(err){gpxEst=null;$("km").readOnly=false;$("actualRow").hidden=true;info.textContent="Couldn't read \""+(f&&f.name)+"\" as a GPX file. In Slopes choose Export As, then GPX, and try again."}
   };
 
   $("moreRides").onclick=function(){recentShown+=25;refresh()};
@@ -441,12 +449,21 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   $("rideForm").onsubmit=async function(e){
     e.preventDefault();
     var v=parseFloat($("km").value);
+    if(gpxEst!==null){
+      var act=$("actualKm").value.trim();
+      if(act!==""){
+        var av=parseFloat(act);
+        if(!(av>0&&av<=500)){say("Please enter a valid actual distance.","err");return}
+        if(Math.abs(av-gpxEst)>20){say("The actual distance must be within 20 km of the estimate ("+gpxEst+" km). Leave it blank to use the estimate.","err");return}
+        v=av;
+      }
+    }
     if(!(v>0&&v<=500))return;
     var b=e.target.querySelector("button");b.disabled=true;
     var r=await sb.from("rides").insert({km:v,ride_date:$("date").value,note:$("note").value.trim().slice(0,80)||null});
     b.disabled=false;
     if(r.error){say("Couldn't save that ride. Please try again.","err");return}
-    say("");$("km").value="";$("note").value="";$("gpx").value="";refresh();
+    say("");$("km").value="";$("note").value="";resetGpx();refresh();
   };
 
   async function show(s){
