@@ -67,8 +67,8 @@ option{background:var(--card);color:var(--text)}
     <div class="card">
       <h2>Log a ride</h2>
       <form id="rideForm">
-        <p class="muted" style="margin:0 0 4px"><strong>Privacy note:</strong> by importing a GPX file, you are letting us know the approximate location where you skied or snowboarded. We look up the nearest town (using OpenStreetMap's free service) and save only that, not your GPS track. If you'd rather not share this, email us at <strong>[email address coming soon]</strong> and we'll enter your ride for you manually.</p>
-        <div><label for="gpx">Import a GPX file from Slopes, Strava, Garmin or another tracker</label><input id="gpx" type="file"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes: open a recording, tap the &#8943; menu, choose Export As, then GPX. Other apps have their own GPX export. The file is read in your browser and is not uploaded; only the distance, date and town are saved.</p></div>
+        <p class="muted" style="margin:0 0 4px"><strong>Privacy note:</strong> by importing a ride file, you are letting us know the approximate location where you skied or snowboarded. We look up the nearest town (using OpenStreetMap's free service) and save only that, not your GPS track. If you'd rather not share this, email us at <strong>[email address coming soon]</strong> and we'll enter your ride for you manually.</p>
+        <div><label for="gpx">Import a GPX, TCX, KML or KMZ file from Slopes, Strava, Garmin or another tracker</label><input id="gpx" type="file"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes: open a recording, tap the &#8943; menu, choose Export As, then GPX or KMZ. Other apps have their own export. The file is read in your browser and is not uploaded; only the distance, date and town are saved.</p></div>
         <div><label for="km">Distance (km, filled in from your file)</label><input id="km" type="number" readonly placeholder="Import a file to fill this in"></div>
         <div id="actualRow" hidden>
           <label for="actualKm">Actual distance from your tracking app (optional, must be within 20 km of the estimate)</label>
@@ -82,7 +82,8 @@ option{background:var(--card);color:var(--text)}
     <div class="card"><div class="top" style="margin-bottom:8px"><h2 style="margin:0">Rides</h2><select id="ridesSort" aria-label="Sort rides"><option value="recent">Most recent</option><option value="distance">Longest distance</option></select></div><ul class="list" id="recent"></ul><p class="muted" id="recentEmpty">No rides logged yet.</p><button class="btn ghost" id="moreRides" type="button" hidden style="margin-top:12px">Show more</button></div>
     <div class="card"><div class="top" style="margin-bottom:8px"><h2 style="margin:0">Riders</h2><select id="ridersSort" aria-label="Sort riders"><option value="recent">Newest sign-ups</option><option value="distance">Most distance</option></select></div><p class="muted" style="margin:0 0 8px">Your friends always show first, then up to 25 more riders.</p><ul class="list" id="riders"></ul><p class="muted" id="empty">No riders have signed up yet.</p></div>
     <div class="card"><h2>My rides</h2><ul class="list" id="mine"></ul><p class="muted" id="mineEmpty">You haven't logged any rides yet.</p></div>
-    <div class="card" id="adminCard" hidden><h2>Admin: accounts</h2><ul class="list" id="allAccounts"></ul><p class="muted">Only admin accounts can see this section and delete accounts. Admins can remove any ride, and everyone can remove their own.</p></div>
+    <div class="card" id="adminCard" hidden><h2>Admin: accounts</h2><ul class="list" id="allAccounts"></ul>
+      <h2 style="margin-top:20px">Recently deleted (kept for 3 days)</h2><ul class="list" id="deletedList"></ul><p class="muted" id="deletedEmpty">Nothing deleted recently.</p><p class="muted">Only admin accounts can see this section and delete accounts. Admins can remove any ride, and everyone can remove their own.</p></div>
     </div>
     <div id="profileView" hidden>
       <p><button class="btn ghost" id="back" type="button">&larr; Back</button></p>
@@ -289,11 +290,13 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   }
 
   async function refresh(){
-    var rs=await sb.from("rides").select("id,user_id,km,ride_date,note,created_at").order("ride_date",{ascending:false}).order("created_at",{ascending:false});
-    var ps=await sb.from("profiles").select("id,display_name,bio,avatar_url,created_at");
+    var rs=await sb.from("rides").select("id,user_id,km,ride_date,note,created_at,deleted_at").order("ride_date",{ascending:false}).order("created_at",{ascending:false});
+    var ps=await sb.from("profiles").select("id,display_name,bio,avatar_url,created_at,deleted_at");
     var fr=await sb.from("friend_links").select("requester,addressee,status");friends={};links={};
     if(!fr.error&&fr.data)fr.data.forEach(function(x){var o=x.requester===session.user.id?x.addressee:x.requester;links[o]=x;if(x.status==="accepted")friends[o]=true});
     if(rs.error||ps.error){say("Couldn't load rides right now.","err");return}
+    var deletedRides=rs.data.filter(function(r){return r.deleted_at}),deletedProfiles=ps.data.filter(function(p){return p.deleted_at});
+    rs.data=rs.data.filter(function(r){return !r.deleted_at});ps.data=ps.data.filter(function(p){return !p.deleted_at});
     var names={};profiles={};lastRides=rs.data;ps.data.forEach(function(p){names[p.id]=p.display_name;profiles[p.id]=p});
     var sum=0,by={};
     rs.data.forEach(function(r){var k=Number(r.km)||0;sum+=k;by[r.user_id]=(by[r.user_id]||0)+k});
@@ -360,20 +363,28 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
         var b=document.createElement("button");b.className="btn danger";b.textContent="Delete account";b.style.padding="4px 10px";
         b.onclick=function(){removeAccount(id)};e.replaceChild(b,e.lastChild);ac.appendChild(e);
       });
+      var dl=$("deletedList");dl.innerHTML="";
+      var left=function(ts){var h=Math.max(0,Math.ceil((3*864e5-(Date.now()-Date.parse(ts)))/36e5));return Math.floor(h/24)+"d "+(h%24)+"h left"};
+      var dn={};deletedProfiles.forEach(function(p){dn[p.id]=p.display_name});
+      var items=[];
+      deletedProfiles.forEach(function(p){items.push({label:p.display_name+" · account · "+left(p.deleted_at),btn:"Restore account",fn:function(){restoreAccount(p.id)},t:p.deleted_at})});
+      deletedRides.filter(function(r){return !dn[r.user_id]}).forEach(function(r){items.push({label:(names[r.user_id]||"Someone")+" · "+r.ride_date+" · "+r1(Number(r.km))+" km · "+left(r.deleted_at),btn:"Restore ride",fn:function(){restoreRide(r.id)},t:r.deleted_at})});
+      items.sort(function(a,b){return b.t.localeCompare(a.t)});
+      $("deletedEmpty").hidden=items.length>0;
+      items.forEach(function(it){var e=li(it.label,"");e.style.alignItems="center";var bt=document.createElement("button");bt.className="btn ghost";bt.textContent=it.btn;bt.style.padding="4px 10px";bt.onclick=it.fn;e.replaceChild(bt,e.lastChild);dl.appendChild(e)});
     }
     if(viewing)renderProfile();
   }
 
   async function removeAccount(id){
     var p=profiles[id]||{display_name:"this person"},n=lastRides.filter(function(r){return r.user_id===id}).length;
-    if(!confirm("Step 1 of 3: Delete the account for \""+p.display_name+"\"?\n\nThis permanently removes their profile and their "+n+" logged ride(s)."))return;
-    if(!confirm("Step 2 of 3: Are you absolutely sure?\n\nThis cannot be undone, and they will lose access to the site."))return;
+    if(!confirm("Step 1 of 3: Delete the account for \""+p.display_name+"\"?\n\nThis hides their profile and their "+n+" logged ride(s) and blocks their login. You can restore them for 3 days; after that they are permanently deleted."))return;
+    if(!confirm("Step 2 of 3: Are you absolutely sure?\n\nTheir login stops working right away. You can undo this under Recently deleted for 3 days."))return;
     var t=prompt("Step 3 of 3: To confirm, type this display name exactly:\n\n"+p.display_name);
     if(t===null||t.trim().toLowerCase()!==p.display_name.trim().toLowerCase()){say("The account was not deleted because the name didn't match.","err");return}
     var r=await sb.rpc("delete_user_account",{target:id});
     if(r.error){say("Couldn't delete that account: "+r.error.message,"err");return}
-    try{await sb.storage.from("avatars").remove([id+"/avatar.jpg"])}catch(e){}
-    say("Account deleted.","ok");refresh();
+    say("Account deleted. You can restore it for 3 days under Recently deleted.","ok");refresh();
   }
 
   function hav(a,b){var R=6371000,t=Math.PI/180,x=(b.lat-a.lat)*t,y=(b.lon-a.lon)*t,q=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a.lat*t)*Math.cos(b.lat*t)*Math.sin(y/2)*Math.sin(y/2);return 2*R*Math.asin(Math.sqrt(q))}
@@ -389,34 +400,106 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
         if(v!==null&&v>33)continue;                       // ignore GPS jumps (over about 120 km/h)
         all+=d;
         var k=Math.max(0,i-5),run=P[i].cum-P[k].cum,grade=(P[i].ele!=null&&P[k].ele!=null&&run>1)?(P[i].ele-P[k].ele)/run:0;
-        if(v!==null&&v>=2&&grade<0.03)down+=d;             // moving over about 7 km/h and not climbing
+        if((v===null||v>=2)&&grade<0.03)down+=d;             // moving over about 7 km/h and not climbing
       }
     });
     return{all:all/1000,down:down/1000,first:first,pts:pts,lat:pts?sLat/pts:0,lon:pts?sLon/pts:0};
   }
-  function analyzeGpx(text){
-    var doc=new DOMParser().parseFromString(text,"application/xml");
-    if(doc.getElementsByTagName("parsererror").length)throw new Error("bad file");
-    var tag=function(root,n){return root.getElementsByTagNameNS("*",n)};
+  var tag=function(root,n){return root.getElementsByTagNameNS("*",n)};
+  function mkPt(lat,lon,ele,tm){return{lat:lat,lon:lon,ele:(ele===undefined||isNaN(ele))?null:ele,tm:(tm===undefined||isNaN(tm))?null:tm}}
+  function txt(parent,n){var e=tag(parent,n)[0];return e?e.textContent:""}
+  function readGpx(doc){
+    var segs=[],ts=tag(doc,"trkseg");
     function readPts(list){
       var P=[];
       for(var j=0;j<list.length;j++){
         var e=list[j],lat=parseFloat(e.getAttribute("lat")),lon=parseFloat(e.getAttribute("lon"));
         if(isNaN(lat)||isNaN(lon))continue;
-        var ee=tag(e,"ele")[0],te=tag(e,"time")[0];
-        var ele=ee?parseFloat(ee.textContent):NaN,tm=te?Date.parse(te.textContent):NaN;
-        P.push({lat:lat,lon:lon,ele:isNaN(ele)?null:ele,tm:isNaN(tm)?null:tm});
+        P.push(mkPt(lat,lon,parseFloat(txt(e,"ele")),Date.parse(txt(e,"time"))));
       }
       return P;
     }
-    var segs=[],ts=tag(doc,"trkseg");
     for(var i=0;i<ts.length;i++)segs.push(readPts(tag(ts[i],"trkpt")));
     if(!segs.some(function(P){return P.length>1})){
       var loose=readPts(tag(doc,"trkpt"));
       if(loose.length>1)segs=[loose];
       else{var rte=readPts(tag(doc,"rtept"));if(rte.length>1)segs=[rte]}
     }
+    return segs;
+  }
+  function readTcx(doc){
+    var segs=[],tr=tag(doc,"Track");
+    for(var i=0;i<tr.length;i++){
+      var tp=tag(tr[i],"Trackpoint"),P=[];
+      for(var j=0;j<tp.length;j++){
+        var lat=parseFloat(txt(tp[j],"LatitudeDegrees")),lon=parseFloat(txt(tp[j],"LongitudeDegrees"));
+        if(isNaN(lat)||isNaN(lon))continue;
+        P.push(mkPt(lat,lon,parseFloat(txt(tp[j],"AltitudeMeters")),Date.parse(txt(tp[j],"Time"))));
+      }
+      segs.push(P);
+    }
+    return segs;
+  }
+  function readKml(doc){
+    var segs=[],tr=tag(doc,"Track");
+    for(var i=0;i<tr.length;i++){
+      var wh=tag(tr[i],"when"),co=tag(tr[i],"coord"),P=[];
+      for(var j=0;j<co.length;j++){
+        var c=co[j].textContent.trim().split(/\s+/),lon=parseFloat(c[0]),lat=parseFloat(c[1]);
+        if(isNaN(lat)||isNaN(lon))continue;
+        P.push(mkPt(lat,lon,parseFloat(c[2]),wh[j]?Date.parse(wh[j].textContent):NaN));
+      }
+      segs.push(P);
+    }
+    if(!segs.some(function(P){return P.length>1})){
+      segs=[];
+      var ls=tag(doc,"LineString");
+      for(var k=0;k<ls.length;k++){
+        var ce=tag(ls[k],"coordinates")[0];if(!ce)continue;
+        var Q=[];
+        ce.textContent.trim().split(/\s+/).forEach(function(t){
+          var c=t.split(","),lon=parseFloat(c[0]),lat=parseFloat(c[1]);
+          if(!isNaN(lat)&&!isNaN(lon))Q.push(mkPt(lat,lon,parseFloat(c[2]),NaN));
+        });
+        segs.push(Q);
+      }
+    }
+    return segs;
+  }
+  function analyzeText(text){
+    var doc=new DOMParser().parseFromString(text,"application/xml");
+    if(doc.getElementsByTagName("parsererror").length)throw new Error("bad file");
+    var root=doc.documentElement.localName.toLowerCase(),segs;
+    if(root==="kml")segs=readKml(doc);
+    else if(root==="trainingcenterdatabase")segs=readTcx(doc);
+    else segs=readGpx(doc);
     return analyzePoints(segs);
+  }
+  // Minimal .kmz (zip) reader: returns the text of the first .kml inside
+  async function unzipFirstKml(buf){
+    var dv=new DataView(buf),u8=new Uint8Array(buf),e=-1;
+    for(var i=u8.length-22;i>=Math.max(0,u8.length-65557);i--){if(dv.getUint32(i,true)===0x06054b50){e=i;break}}
+    if(e<0)throw new Error("not a zip");
+    var n=dv.getUint16(e+10,true),off=dv.getUint32(e+16,true);
+    for(var k=0;k<n;k++){
+      if(dv.getUint32(off,true)!==0x02014b50)throw new Error("bad zip");
+      var method=dv.getUint16(off+10,true),csize=dv.getUint32(off+20,true),usize=dv.getUint32(off+24,true),nl=dv.getUint16(off+28,true),xl=dv.getUint16(off+30,true),cl=dv.getUint16(off+32,true),lho=dv.getUint32(off+42,true);
+      var name=new TextDecoder().decode(u8.subarray(off+46,off+46+nl));
+      off+=46+nl+xl+cl;
+      if(/\.kml$/i.test(name)){
+        if(usize>60*1024*1024)throw new Error("too big");
+        var start=lho+30+dv.getUint16(lho+26,true)+dv.getUint16(lho+28,true),data=u8.subarray(start,start+csize);
+        if(method===0)return new TextDecoder().decode(data);
+        if(method===8)return await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text();
+        throw new Error("unsupported zip");
+      }
+    }
+    throw new Error("no kml in zip");
+  }
+  async function analyzeFile(f){
+    var buf=await f.arrayBuffer(),u8=new Uint8Array(buf);
+    var text=(u8[0]===0x50&&u8[1]===0x4b)?await unzipFirstKml(buf):new TextDecoder().decode(u8);
+    return analyzeText(text);
   }
   var gpxEst=null,gpxLoc=null,locBusy=false,lookupId=0,gpxHelp=$("gpxInfo").textContent;
   function clearImport(){lookupId++;locBusy=false;gpxEst=null;gpxLoc=null;$("km").value="";$("date").value="";$("note").value="";$("note").placeholder="Filled in automatically";$("actualRow").hidden=true;$("actualKm").value=""}
@@ -443,14 +526,14 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     var f=this.files[0],info=$("gpxInfo");if(!f)return;
     if(f.size>15*1024*1024){info.textContent="That file is too large (15 MB max).";this.value="";return}
     try{
-      var r=analyzeGpx(await f.text());
-      if(!r.pts||r.all<=0){clearImport();info.textContent="Read \""+f.name+"\" ("+Math.round(f.size/1024)+" KB) but found no GPS track points in it. Try exporting again from Slopes as GPX, and if it still fails tell me the export type you chose.";return}
+      var r=await analyzeFile(f);
+      if(!r.pts||r.all<=0){clearImport();info.textContent="Read \""+f.name+"\" ("+Math.round(f.size/1024)+" KB) but found no GPS track points in it. Try exporting again (GPX, TCX, KML or KMZ), and if it still fails tell me the export type you chose.";return}
       var est=r.down>0?r.down:r.all;
       gpxEst=r1(est);$("km").value=gpxEst;$("km").readOnly=true;$("actualRow").hidden=false;$("actualKm").value="";
       var dd=new Date(r.first||Date.now());$("date").value=dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0");
       info.textContent="Estimated "+r1(est)+" km on the snow (lifts left out). The whole file is "+r1(r.all)+" km including lifts. If you know the exact figure from your app, enter it below (it must be within 20 km of this estimate).";
       lookupLocation(r.lat,r.lon);
-    }catch(err){clearImport();info.textContent="Couldn't read \""+(f&&f.name)+"\" as a GPX file. In Slopes choose Export As, then GPX, and try again."}
+    }catch(err){clearImport();info.textContent="Couldn't read \""+(f&&f.name)+"\" as a ride file. Please export it from your tracking app as GPX, TCX, KML or KMZ and try again."}
   };
 
   $("adminAddForm").onsubmit=async function(e){
@@ -484,16 +567,27 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     say(accept?"Friend request accepted.":"Friend request declined.","ok");refresh();
   }
 
+  async function restoreRide(id){
+    var r=await sb.rpc("restore_ride",{ride_id:id});
+    if(r.error){say("Couldn't restore that ride.","err");return}
+    say("Ride restored.","ok");refresh();
+  }
+  async function restoreAccount(id){
+    var r=await sb.rpc("restore_user_account",{target:id});
+    if(r.error){say("Couldn't restore that account.","err");return}
+    say("Account restored.","ok");refresh();
+  }
+
   async function removeRide(id){
-    if(!confirm("Remove this ride? This can't be undone."))return;
-    var r=await sb.from("rides").delete().eq("id",id).select();
-    if(r.error||!r.data||!r.data.length){say("Couldn't remove that ride.","err");return}
+    if(!confirm("Remove this ride? An admin can restore it for 3 days; after that it is permanently deleted."))return;
+    var r=await sb.rpc("delete_ride",{ride_id:id});
+    if(r.error){say("Couldn't remove that ride.","err");return}
     say("Ride removed.","ok");refresh();
   }
 
   $("rideForm").onsubmit=async function(e){
     e.preventDefault();
-    if(gpxEst===null){say("Please import a GPX file to log a ride.","err");return}
+    if(gpxEst===null){say("Please import a ride file (GPX, TCX, KML or KMZ) to log a ride.","err");return}
     if(locBusy){say("Still looking up the location. Please try again in a moment.","err");return}
     var v=parseFloat($("km").value);
     if(gpxEst!==null){
@@ -522,6 +616,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
       await ensureProfile(s.user);
       isAdmin=false;
       try{var q=await sb.from("admins").select("user_id").eq("user_id",s.user.id).maybeSingle();isAdmin=!!q.data}catch(e){}
+      if(isAdmin){try{var pg=await sb.rpc("purge_deleted");if(pg.data&&pg.data.length)await sb.storage.from("avatars").remove(pg.data.map(function(x){return x.purged_id+"/avatar.jpg"}))}catch(e){}}
       refresh();
     }
   }
