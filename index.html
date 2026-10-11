@@ -47,6 +47,13 @@ option{background:var(--card);color:var(--text)}
 .cropWrap{position:relative;width:300px;height:300px;max-width:100%;margin:0 auto;overflow:hidden;border-radius:8px;background:#000}
 #cropCanvas{display:block;touch-action:none;cursor:grab}
 .cropMask{position:absolute;inset:0;pointer-events:none;border-radius:50%;box-shadow:0 0 0 999px rgba(0,0,0,.55)}
+input[type=search]{-webkit-appearance:none;appearance:none}
+.pill{background:var(--accent2);color:var(--on-accent);border-radius:999px;padding:1px 8px;font-size:.75rem;font-weight:700}
+#thread{max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;padding:4px 2px}
+.bubble{max-width:80%;padding:8px 12px;border-radius:16px;margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.bubble small{display:block;opacity:.7;font-size:.72rem;margin-top:2px}
+.bubble.me{background:var(--accent);color:var(--on-accent);margin-left:auto;border-bottom-right-radius:4px}
+.bubble.them{background:var(--bg);border:1px solid var(--border);border-bottom-left-radius:4px}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -90,7 +97,7 @@ option{background:var(--card);color:var(--text)}
 </svg>
 </div>
 <div class="wrap">
-  <div class="top"><h1>Shred for a Cause</h1><div><button class="btn ghost" id="themeBtn" type="button">Dark mode</button> <button class="btn ghost" id="myprof" hidden>My profile</button> <button class="btn ghost" id="logout" hidden>Log out</button></div></div>
+  <div class="top"><h1>Shred for a Cause</h1><div><button class="btn ghost" id="themeBtn" type="button">Dark mode</button> <button class="btn ghost" id="msgBtn" hidden>Messages</button> <button class="btn ghost" id="myprof" hidden>My profile</button> <button class="btn ghost" id="logout" hidden>Log out</button></div></div>
   <p class="msg" id="msg" hidden></p>
 
   <!-- Signed-out view -->
@@ -127,7 +134,7 @@ option{background:var(--card);color:var(--text)}
       </form>
     </div>
     <div class="card"><div class="top" style="margin-bottom:8px"><h2 style="margin:0">Rides</h2><select id="ridesSort" aria-label="Sort rides"><option value="recent">Most recent</option><option value="distance">Longest distance</option></select></div><ul class="list" id="recent"></ul><p class="muted" id="recentEmpty">No rides logged yet.</p><button class="btn ghost" id="moreRides" type="button" hidden style="margin-top:12px">Show more</button></div>
-    <div class="card"><div class="top" style="margin-bottom:8px"><h2 style="margin:0">Riders</h2><select id="ridersSort" aria-label="Sort riders"><option value="recent">Newest sign-ups</option><option value="distance">Most distance</option></select></div><p class="muted" style="margin:0 0 8px">Your friends always show first, then up to 25 more riders.</p><ul class="list" id="riders"></ul><p class="muted" id="empty">No riders have signed up yet.</p></div>
+    <div class="card"><div class="top" style="margin-bottom:8px"><h2 style="margin:0">Riders</h2><select id="ridersSort" aria-label="Sort riders"><option value="recent">Newest sign-ups</option><option value="distance">Most distance</option></select></div><input id="riderSearch" type="search" placeholder="Search all riders by name" autocomplete="off" style="margin-bottom:8px"><p class="muted" id="riderNote" style="margin:0 0 8px">Your friends always show first, then up to 25 more riders. Use the search box to find anyone.</p><ul class="list" id="riders"></ul><p class="muted" id="empty">No riders have signed up yet.</p></div>
     <div class="card"><h2>My rides</h2><ul class="list" id="mine"></ul><p class="muted" id="mineEmpty">You haven't logged any rides yet.</p></div>
     <div class="card" id="adminCard" hidden><h2>Admin: accounts</h2><ul class="list" id="allAccounts"></ul>
       <h2 style="margin-top:20px">Recently deleted (kept for 3 days)</h2><ul class="list" id="deletedList"></ul><p class="muted" id="deletedEmpty">Nothing deleted recently.</p><p class="muted">Only admin accounts can see this section and delete accounts. Admins can remove any ride, and everyone can remove their own.</p></div>
@@ -154,6 +161,23 @@ option{background:var(--card);color:var(--text)}
         </form>
       </div>
       <div class="card"><h2>Rides</h2><ul class="list" id="profRides"></ul><p class="muted" id="profNoRides">No rides logged yet.</p></div>
+    </div>
+    <div id="msgView" hidden>
+      <p><button class="btn ghost" id="msgBack" type="button">&larr; Back</button></p>
+      <div class="card" id="convCard">
+        <h2>Messages</h2>
+        <input id="msgFind" type="search" placeholder="Start a new message: search by name" autocomplete="off">
+        <ul class="list" id="msgFindList" style="margin:6px 0 10px"></ul>
+        <ul class="list" id="convList"></ul>
+        <p class="muted" id="convEmpty">No messages yet.</p>
+        <p class="muted" id="msgRule"></p>
+      </div>
+      <div class="card" id="threadCard" hidden>
+        <div class="top" style="margin-bottom:8px"><h2 id="threadTitle" style="margin:0"></h2><button class="btn ghost" id="threadBack" type="button">All messages</button></div>
+        <div id="thread"></div>
+        <form id="msgForm" style="margin-top:10px"><textarea id="msgBody" maxlength="1000" rows="3" placeholder="Write a message" required></textarea><button class="btn" type="submit">Send</button></form>
+        <p class="muted" id="msgBlock" hidden></p>
+      </div>
     </div>
   </div>
 </div>
@@ -214,7 +238,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   say("Setup needed: open config.js and paste in your Supabase Project URL and publishable key.","err");
 } else {
   var sb=supabase.createClient(C.SUPABASE_URL,C.SUPABASE_KEY);
-  var signup=false,session=null,isAdmin=false,profiles={},lastRides=[],viewing=null,recentShown=25,friends={},links={},ridesSort="recent",ridersSort="recent";
+  var signup=false,session=null,isAdmin=false,profiles={},lastRides=[],viewing=null,recentShown=25,friends={},links={},ridesSort="recent",ridersSort="recent",totalsBy={},msgs=[],openThread=null,threadCount=0;
 
   function setMode(s){
     signup=s;
@@ -308,7 +332,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   }
   function renderProfile(){
     var p=profiles[viewing]||{display_name:"Someone"},mine=viewing===session.user.id;
-    $("home").hidden=true;$("profileView").hidden=false;
+    $("home").hidden=true;$("profileView").hidden=false;$("msgView").hidden=true;
     var rides=lastRides.filter(function(r){return r.user_id===viewing}),tot=0;
     rides.forEach(function(r){tot+=Number(r.km)||0});
     var c=$("profCard");c.innerHTML="";
@@ -326,6 +350,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
       else if(lk&&lk.addressee===session.user.id){mk("Accept friend request","btn",function(){answerRequest(vid,true)});mk("Decline","btn ghost",function(){answerRequest(vid,false)})}
       else if(lk){mk("Friend request sent · Cancel","btn ghost",function(){dropLink(vid,"Friend request cancelled.")})}
       else{mk("Add friend","btn",function(){sendRequest(vid)})}
+      if(canMessage(vid))mk("Message","btn ghost",function(){openMessages();openThreadWith(vid)});
       c.appendChild(row);
     }
     $("editCard").hidden=!mine;
@@ -371,6 +396,32 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     }
   }
 
+  function renderRiders(){
+    var by=totalsBy,names={};
+    Object.keys(profiles).forEach(function(id){names[id]=profiles[id].display_name});
+    var ul=$("riders");ul.innerHTML="";
+    var all=Object.keys(profiles),newest=function(a,b){return (profiles[b].created_at||"").localeCompare(profiles[a].created_at||"")},far=function(a,b){return (by[b]||0)-(by[a]||0)||newest(a,b)},cmp=ridersSort==="distance"?far:newest;
+    var term=($("riderSearch").value||"").trim().toLowerCase(),ids,more=0;
+    if(term){
+      ids=all.filter(function(id){return (names[id]||"").toLowerCase().indexOf(term)!==-1}).sort(function(a,b){return (friends[b]?1:0)-(friends[a]?1:0)||cmp(a,b)});
+      if(ids.length>50){more=ids.length-50;ids=ids.slice(0,50)}
+    } else {
+      ids=all.filter(function(id){return friends[id]}).sort(cmp).concat(all.filter(function(id){return !friends[id]}).sort(cmp).slice(0,25));
+    }
+    $("empty").textContent=term?"No riders match your search.":"No riders have signed up yet.";
+    $("empty").hidden=ids.length>0;
+    $("riderNote").textContent=term?(more?"Showing the first 50 matches. Type more of the name to narrow it down.":"Search results across all riders."):"Your friends always show first, then up to 25 more riders. Use the search box to find anyone.";
+    ids.forEach(function(id){
+      var e=document.createElement("li");e.style.alignItems="center";
+      var l=document.createElement("span");l.style.cssText="display:flex;align-items:center;gap:10px";
+      l.appendChild(avatar(profiles[id],36));
+      var b=document.createElement("button");b.className="link";b.style.fontSize="1rem";b.textContent=(friends[id]?"★ ":"")+(names[id]||"Someone");b.onclick=function(){openProfile(id)};
+      l.appendChild(b);
+      var k=document.createElement("span");k.textContent=r1(by[id]||0)+" km";
+      e.appendChild(l);e.appendChild(k);ul.appendChild(e);
+    });
+  }
+
   async function refresh(){
     var rs=await sb.from("rides").select("id,user_id,km,ride_date,note,created_at,deleted_at").order("ride_date",{ascending:false}).order("created_at",{ascending:false});
     var ps=await sb.from("profiles").select("id,display_name,bio,avatar_url,created_at,deleted_at");
@@ -383,19 +434,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     var sum=0,by={};
     rs.data.forEach(function(r){var k=Number(r.km)||0;sum+=k;by[r.user_id]=(by[r.user_id]||0)+k});
     $("total").textContent=r1(sum).toLocaleString();
-    var ul=$("riders");ul.innerHTML="";
-    var all=Object.keys(profiles),newest=function(a,b){return (profiles[b].created_at||"").localeCompare(profiles[a].created_at||"")},far=function(a,b){return (by[b]||0)-(by[a]||0)||newest(a,b)},cmp=ridersSort==="distance"?far:newest;
-    var ids=all.filter(function(id){return friends[id]}).sort(cmp).concat(all.filter(function(id){return !friends[id]}).sort(cmp).slice(0,25));
-    $("empty").hidden=ids.length>0;
-    ids.forEach(function(id){
-      var e=document.createElement("li");e.style.alignItems="center";
-      var l=document.createElement("span");l.style.cssText="display:flex;align-items:center;gap:10px";
-      l.appendChild(avatar(profiles[id],36));
-      var b=document.createElement("button");b.className="link";b.style.fontSize="1rem";b.textContent=(friends[id]?"★ ":"")+(names[id]||"Someone");b.onclick=function(){openProfile(id)};
-      l.appendChild(b);
-      var k=document.createElement("span");k.textContent=r1(by[id]||0)+" km";
-      e.appendChild(l);e.appendChild(k);ul.appendChild(e);
-    });
+    totalsBy=by;renderRiders();
     var mine=rs.data.filter(function(r){return r.user_id===session.user.id}),m=$("mine");m.innerHTML="";
     $("mineEmpty").hidden=mine.length>0;
     mine.forEach(function(r){
@@ -455,6 +494,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
       $("deletedEmpty").hidden=items.length>0;
       items.forEach(function(it){var e=li(it.label,"");e.style.alignItems="center";var bt=document.createElement("button");bt.className="btn ghost";bt.textContent=it.btn;bt.style.padding="4px 10px";bt.onclick=it.fn;e.replaceChild(bt,e.lastChild);dl.appendChild(e)});
     }
+    loadMessages();
     if(viewing)renderProfile();
   }
 
@@ -630,7 +670,8 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
 
   $("moreRides").onclick=function(){recentShown+=25;refresh()};
   $("ridesSort").onchange=function(){ridesSort=this.value;recentShown=25;refresh()};
-  $("ridersSort").onchange=function(){ridersSort=this.value;refresh()};
+  $("ridersSort").onchange=function(){ridersSort=this.value;renderRiders()};
+  $("riderSearch").oninput=renderRiders;
 
   async function sendRequest(id){
     var r=await sb.from("friend_links").insert({addressee:id});
@@ -648,6 +689,106 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     if(r.error||(!accept&&(!r.data||!r.data.length))){say("Couldn't update that request. Please try again.","err");return}
     say(accept?"Friend request accepted.":"Friend request declined.","ok");refresh();
   }
+
+  function canMessage(id){return isAdmin||!!friends[id]}
+  function pname(id){return profiles[id]?profiles[id].display_name:"Deleted account"}
+  function fmtTime(ts){var d=new Date(ts);return d.toDateString()===new Date().toDateString()?d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):d.toLocaleDateString([],{month:"short",day:"numeric"})}
+
+  async function loadMessages(){
+    if(!session)return;
+    var r=await sb.from("messages").select("id,sender,recipient,body,created_at,read_at").order("created_at",{ascending:false}).limit(500);
+    if(r.error)return;
+    msgs=r.data;var me=session.user.id;
+    if(openThread!==null&&msgs.some(function(m){return m.sender===openThread&&m.recipient===me&&!m.read_at})){
+      sb.rpc("mark_messages_read",{other:openThread}).then(function(){});
+      var now=new Date().toISOString();
+      msgs.forEach(function(m){if(m.sender===openThread&&m.recipient===me&&!m.read_at)m.read_at=now});
+    }
+    var unread=msgs.filter(function(m){return m.recipient===me&&!m.read_at}).length;
+    $("msgBtn").textContent=unread?"Messages ("+unread+")":"Messages";
+    if(!$("msgView").hidden)renderMessages();
+  }
+
+  function personRow(id,label,fn){
+    var e=document.createElement("li");e.style.alignItems="center";
+    var l=document.createElement("span");l.style.cssText="display:flex;align-items:center;gap:10px";
+    l.appendChild(avatar(profiles[id],36));
+    var n=document.createElement("span");n.textContent=pname(id);l.appendChild(n);
+    var b=document.createElement("button");b.className="btn ghost";b.textContent=label;b.style.padding="4px 10px";b.onclick=fn;
+    e.appendChild(l);e.appendChild(b);return e;
+  }
+
+  function renderMessages(){
+    var me=session.user.id;
+    $("msgRule").textContent=isAdmin?"As an admin, you can message anyone.":"You can message your friends. Add friends from a rider's profile.";
+    if(openThread===null){
+      $("convCard").hidden=false;$("threadCard").hidden=true;
+      var by={};
+      msgs.forEach(function(m){var o=m.sender===me?m.recipient:m.sender;if(!by[o])by[o]={id:o,last:m,unread:0};if(m.recipient===me&&!m.read_at)by[o].unread++});
+      var list=Object.keys(by).map(function(k){return by[k]}).sort(function(a,b){return b.last.created_at.localeCompare(a.last.created_at)});
+      var cl=$("convList");cl.innerHTML="";$("convEmpty").hidden=list.length>0;
+      list.forEach(function(c){
+        var e=document.createElement("li");e.style.cssText="align-items:center;cursor:pointer";
+        var l=document.createElement("span");l.style.cssText="display:flex;align-items:center;gap:10px;min-width:0";
+        l.appendChild(avatar(profiles[c.id],40));
+        var t=document.createElement("span");t.style.minWidth="0";
+        var n=document.createElement("div");n.textContent=pname(c.id);n.style.fontWeight=c.unread?"700":"600";
+        var sn=document.createElement("div");sn.className="muted";sn.style.cssText="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw";sn.textContent=(c.last.sender===me?"You: ":"")+c.last.body;
+        t.appendChild(n);t.appendChild(sn);l.appendChild(t);
+        var r=document.createElement("span");r.style.cssText="display:flex;align-items:center;gap:8px;white-space:nowrap";
+        var tm=document.createElement("span");tm.className="muted";tm.textContent=fmtTime(c.last.created_at);r.appendChild(tm);
+        if(c.unread){var pl=document.createElement("span");pl.className="pill";pl.textContent=c.unread;r.appendChild(pl)}
+        e.appendChild(l);e.appendChild(r);e.onclick=function(){openThreadWith(c.id)};cl.appendChild(e);
+      });
+      var term=$("msgFind").value.trim().toLowerCase(),fl=$("msgFindList");fl.innerHTML="";
+      if(term){
+        var found=Object.keys(profiles).filter(function(id){return id!==me&&canMessage(id)&&(profiles[id].display_name||"").toLowerCase().indexOf(term)!==-1}).slice(0,8);
+        if(!found.length){var none=document.createElement("li");none.className="muted";none.textContent=isAdmin?"No riders match that name.":"No friends match that name. You can only message friends.";fl.appendChild(none)}
+        found.forEach(function(id){fl.appendChild(personRow(id,"Message",function(){openThreadWith(id)}))});
+      }
+    } else {
+      var other=openThread,p=profiles[other];
+      $("convCard").hidden=true;$("threadCard").hidden=false;
+      $("threadTitle").textContent=pname(other);
+      var conv=msgs.filter(function(m){return (m.sender===me&&m.recipient===other)||(m.sender===other&&m.recipient===me)}).sort(function(a,b){return a.created_at.localeCompare(b.created_at)});
+      var th=$("thread");th.innerHTML="";
+      if(!conv.length){var em=document.createElement("p");em.className="muted";em.textContent="No messages yet. Say hello!";th.appendChild(em)}
+      conv.forEach(function(m){
+        var b=document.createElement("div");b.className="bubble "+(m.sender===me?"me":"them");b.textContent=m.body;
+        var sm=document.createElement("small");sm.textContent=new Date(m.created_at).toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+        b.appendChild(sm);th.appendChild(b);
+      });
+      if(conv.length!==threadCount){threadCount=conv.length;th.scrollTop=th.scrollHeight}
+      var ok=!!p&&canMessage(other);
+      $("msgForm").hidden=!ok;$("msgBlock").hidden=ok;
+      $("msgBlock").textContent=p?"You can only send messages to your friends. Send a friend request from their profile.":"This account is no longer available.";
+    }
+  }
+
+  function openMessages(){
+    viewing=null;openThread=null;
+    $("home").hidden=true;$("profileView").hidden=true;$("msgView").hidden=false;
+    $("msgFind").value="";say("");renderMessages();window.scrollTo(0,0);loadMessages();
+  }
+  function openThreadWith(id){
+    openThread=id;threadCount=-1;$("msgBody").value="";
+    renderMessages();
+    sb.rpc("mark_messages_read",{other:id}).then(function(){loadMessages()});
+  }
+  $("msgBtn").onclick=openMessages;
+  $("msgBack").onclick=function(){openThread=null;$("msgView").hidden=true;$("home").hidden=false;say("")};
+  $("threadBack").onclick=function(){openThread=null;renderMessages()};
+  $("msgFind").oninput=renderMessages;
+  $("msgForm").onsubmit=async function(e){
+    e.preventDefault();
+    var t=$("msgBody").value.trim();if(!t||openThread===null)return;
+    var b=e.target.querySelector("button");b.disabled=true;
+    var r=await sb.rpc("send_message",{to_user:openThread,text_body:t});
+    b.disabled=false;
+    if(r.error){say(r.error.message||"Couldn't send that message.","err");return}
+    $("msgBody").value="";say("");await loadMessages();
+  };
+  setInterval(function(){if(session&&!document.hidden)loadMessages()},30000);
 
   async function restoreRide(id){
     var r=await sb.rpc("restore_ride",{ride_id:id});
@@ -693,7 +834,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     session=s;
     var on=!!s;
     if(!on){isAdmin=false;viewing=null}
-    $("authCard").hidden=on;$("app").hidden=!on;$("logout").hidden=!on;$("myprof").hidden=!on;if(!on){$("home").hidden=false;$("profileView").hidden=true}
+    $("authCard").hidden=on;$("app").hidden=!on;$("logout").hidden=!on;$("myprof").hidden=!on;$("msgBtn").hidden=!on;if(!on){$("home").hidden=false;$("profileView").hidden=true;$("msgView").hidden=true;openThread=null;msgs=[]}
     if(on){
       await ensureProfile(s.user);
       isAdmin=false;
