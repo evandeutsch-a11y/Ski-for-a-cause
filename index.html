@@ -29,7 +29,9 @@ input,textarea{width:100%;font-family:inherit;padding:11px;border:1px solid var(
 .link{background:none;border:0;color:var(--accent);cursor:pointer;font-size:.9rem;padding:0;text-decoration:underline}
 .av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-weight:700;overflow:hidden;flex:none}
 .av img{width:100%;height:100%;object-fit:cover}
-select{padding:8px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:.9rem;font-family:inherit}
+select{appearance:none;-webkit-appearance:none;padding:8px 32px 8px 12px;border:1px solid var(--accent);border-radius:10px;background-color:var(--card);color:var(--accent);font-weight:600;font-size:.9rem;font-family:inherit;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--accent) 50%),linear-gradient(135deg,var(--accent) 50%,transparent 50%);background-position:calc(100% - 17px) 55%,calc(100% - 12px) 55%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+select:focus{outline:2px solid var(--accent2);outline-offset:1px}
+option{background:var(--card);color:var(--text)}
 .btn.danger{background:var(--bad);color:#fff;border:0}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
 .modalBox{background:var(--card);border-radius:14px;padding:18px;max-width:340px;width:100%}
@@ -65,6 +67,7 @@ select{padding:8px;border:1px solid var(--border);border-radius:10px;background:
     <div class="card">
       <h2>Log a ride</h2>
       <form id="rideForm">
+        <div><label for="gpx">Import a Slopes GPX file (optional)</label><input id="gpx" type="file" accept=".gpx,application/gpx+xml,text/xml"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes, open a recording, tap the &#8943; menu, choose Export As, then GPX. The file is read in your browser and is not uploaded; only the distance is saved.</p></div>
         <input id="km" type="number" min="0.1" max="500" step="0.1" required placeholder="Distance (km) from your tracking app">
         <input id="date" type="date" required>
         <input id="note" maxlength="80" placeholder="Where did you ride? (optional)">
@@ -352,6 +355,54 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     say("Account deleted.","ok");refresh();
   }
 
+  function hav(a,b){var R=6371000,t=Math.PI/180,x=(b.lat-a.lat)*t,y=(b.lon-a.lon)*t,q=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a.lat*t)*Math.cos(b.lat*t)*Math.sin(y/2)*Math.sin(y/2);return 2*R*Math.asin(Math.sqrt(q))}
+  // segs: array of tracks, each an array of {lat,lon,ele,tm}. Returns km for the whole file and for downhill/flat skiing only.
+  function analyzePoints(segs){
+    var all=0,down=0,first=null,pts=0;
+    segs.forEach(function(P){
+      P.forEach(function(q){pts++;if(first===null&&q.tm)first=q.tm});
+      if(P.length)P[0].cum=0;
+      for(var i=1;i<P.length;i++){
+        var d=hav(P[i-1],P[i]),dt=(P[i].tm&&P[i-1].tm)?(P[i].tm-P[i-1].tm)/1000:0,v=dt>0?d/dt:null;
+        P[i].cum=P[i-1].cum+d;
+        if(v!==null&&v>33)continue;                       // ignore GPS jumps (over about 120 km/h)
+        all+=d;
+        var k=Math.max(0,i-5),run=P[i].cum-P[k].cum,grade=(P[i].ele!=null&&P[k].ele!=null&&run>1)?(P[i].ele-P[k].ele)/run:0;
+        if(v!==null&&v>=2&&grade<0.03)down+=d;             // moving over about 7 km/h and not climbing
+      }
+    });
+    return{all:all/1000,down:down/1000,first:first,pts:pts};
+  }
+  function analyzeGpx(text){
+    var doc=new DOMParser().parseFromString(text,"application/xml");
+    if(doc.getElementsByTagName("parsererror").length)throw new Error("bad file");
+    var segs=[],ts=doc.getElementsByTagName("trkseg");
+    for(var i=0;i<ts.length;i++){
+      var tp=ts[i].getElementsByTagName("trkpt"),P=[];
+      for(var j=0;j<tp.length;j++){
+        var e=tp[j],lat=parseFloat(e.getAttribute("lat")),lon=parseFloat(e.getAttribute("lon"));
+        if(isNaN(lat)||isNaN(lon))continue;
+        var ee=e.getElementsByTagName("ele")[0],te=e.getElementsByTagName("time")[0];
+        var ele=ee?parseFloat(ee.textContent):NaN,tm=te?Date.parse(te.textContent):NaN;
+        P.push({lat:lat,lon:lon,ele:isNaN(ele)?null:ele,tm:isNaN(tm)?null:tm});
+      }
+      segs.push(P);
+    }
+    return analyzePoints(segs);
+  }
+  $("gpx").onchange=async function(){
+    var f=this.files[0],info=$("gpxInfo");if(!f)return;
+    if(f.size>15*1024*1024){info.textContent="That file is too large (15 MB max).";this.value="";return}
+    try{
+      var r=analyzeGpx(await f.text());
+      if(!r.pts||r.all<=0){info.textContent="Couldn't find a GPS track in that file. Please export it from Slopes as a GPX file.";return}
+      var est=r.down>0?r.down:r.all;
+      $("km").value=r1(est);
+      if(r.first){var dd=new Date(r.first);$("date").value=dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0")}
+      info.textContent="Estimated "+r1(est)+" km on the snow (lifts left out). The whole file is "+r1(r.all)+" km including lifts. Compare this with your Slopes stats and change the number if it looks off.";
+    }catch(err){info.textContent="Couldn't read that file. Please export it from Slopes as a GPX file and try again."}
+  };
+
   $("moreRides").onclick=function(){recentShown+=25;refresh()};
   $("ridesSort").onchange=function(){ridesSort=this.value;recentShown=25;refresh()};
   $("ridersSort").onchange=function(){ridersSort=this.value;refresh()};
@@ -388,7 +439,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     var r=await sb.from("rides").insert({km:v,ride_date:$("date").value,note:$("note").value.trim().slice(0,80)||null});
     b.disabled=false;
     if(r.error){say("Couldn't save that ride. Please try again.","err");return}
-    say("");$("km").value="";$("note").value="";refresh();
+    say("");$("km").value="";$("note").value="";$("gpx").value="";refresh();
   };
 
   async function show(s){
