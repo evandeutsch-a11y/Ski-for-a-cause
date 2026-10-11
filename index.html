@@ -67,15 +67,15 @@ option{background:var(--card);color:var(--text)}
     <div class="card">
       <h2>Log a ride</h2>
       <form id="rideForm">
-        <div><label for="gpx">Import a GPX file from Slopes, Strava, Garmin or another tracker (optional)</label><input id="gpx" type="file"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes: open a recording, tap the &#8943; menu, choose Export As, then GPX. Other apps have their own GPX export. The file is read in your browser and is not uploaded; only the distance is saved.</p></div>
-        <input id="km" type="number" min="0.1" max="500" step="0.1" required placeholder="Distance (km) from your tracking app">
+        <p class="muted" style="margin:0 0 4px"><strong>Privacy note:</strong> by importing a GPX file, you are letting us know the approximate location where you skied or snowboarded. We look up the nearest town (using OpenStreetMap's free service) and save only that, not your GPS track. If you'd rather not share this, email us at <strong>[email address coming soon]</strong> and we'll enter your ride for you manually.</p>
+        <div><label for="gpx">Import a GPX file from Slopes, Strava, Garmin or another tracker</label><input id="gpx" type="file"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes: open a recording, tap the &#8943; menu, choose Export As, then GPX. Other apps have their own GPX export. The file is read in your browser and is not uploaded; only the distance, date and town are saved.</p></div>
+        <div><label for="km">Distance (km, filled in from your file)</label><input id="km" type="number" readonly placeholder="Import a file to fill this in"></div>
         <div id="actualRow" hidden>
           <label for="actualKm">Actual distance from your tracking app (optional, must be within 20 km of the estimate)</label>
           <input id="actualKm" type="number" min="0.1" max="500" step="0.1" placeholder="Leave blank to use the estimate">
-          <button class="link" id="clearGpx" type="button" style="margin-top:6px">Remove imported file and enter distance manually</button>
         </div>
-        <input id="date" type="date" required>
-        <input id="note" maxlength="80" placeholder="Where did you ride? (optional)">
+        <div><label for="date">Date (from your file)</label><input id="date" type="date" disabled></div>
+        <div><label for="note">Location (looked up from your file)</label><input id="note" readonly placeholder="Filled in automatically"></div>
         <button class="btn" type="submit">Log this ride</button>
       </form>
     </div>
@@ -94,6 +94,15 @@ option{background:var(--card);color:var(--text)}
           <div><label for="pbio">About me / why I'm riding (up to 300 characters)</label><textarea id="pbio" maxlength="300" rows="4"></textarea></div>
           <div><label for="pphoto">Profile photo (optional)</label><input id="pphoto" type="file" accept="image/*"><div id="photoPreview" style="margin-top:8px;display:flex;align-items:center"></div></div>
           <button class="btn" type="submit">Save profile</button>
+        </form>
+      </div>
+      <div class="card" id="adminAddCard" hidden>
+        <h2>Admin: add a ride for this rider</h2>
+        <form id="adminAddForm">
+          <input id="aKm" type="number" min="0.1" max="500" step="0.1" required placeholder="Distance (km)">
+          <input id="aDate" type="date" required>
+          <input id="aNote" maxlength="80" placeholder="Location (optional)">
+          <button class="btn" type="submit">Add ride for this rider</button>
         </form>
       </div>
       <div class="card"><h2>Rides</h2><ul class="list" id="profRides"></ul><p class="muted" id="profNoRides">No rides logged yet.</p></div>
@@ -212,7 +221,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   function openProfile(id){
     viewing=id;
     if(id===session.user.id){var p=profiles[id]||{};$("pname").value=p.display_name||"";$("pbio").value=p.bio||"";clearPhoto()}
-    say("");renderProfile();window.scrollTo(0,0);
+    $("aDate").valueAsDate=new Date();say("");renderProfile();window.scrollTo(0,0);
   }
   function renderProfile(){
     var p=profiles[viewing]||{display_name:"Someone"},mine=viewing===session.user.id;
@@ -237,6 +246,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
       c.appendChild(row);
     }
     $("editCard").hidden=!mine;
+    $("adminAddCard").hidden=!(isAdmin&&!mine);
     var ul=$("profRides");ul.innerHTML="";
     $("profNoRides").hidden=rides.length>0;
     rides.forEach(function(r){
@@ -369,9 +379,9 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   function hav(a,b){var R=6371000,t=Math.PI/180,x=(b.lat-a.lat)*t,y=(b.lon-a.lon)*t,q=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a.lat*t)*Math.cos(b.lat*t)*Math.sin(y/2)*Math.sin(y/2);return 2*R*Math.asin(Math.sqrt(q))}
   // segs: array of tracks, each an array of {lat,lon,ele,tm}. Returns km for the whole file and for downhill/flat skiing only.
   function analyzePoints(segs){
-    var all=0,down=0,first=null,pts=0;
+    var all=0,down=0,first=null,pts=0,sLat=0,sLon=0;
     segs.forEach(function(P){
-      P.forEach(function(q){pts++;if(first===null&&q.tm)first=q.tm});
+      P.forEach(function(q){pts++;sLat+=q.lat;sLon+=q.lon;if(first===null&&q.tm)first=q.tm});
       if(P.length)P[0].cum=0;
       for(var i=1;i<P.length;i++){
         var d=hav(P[i-1],P[i]),dt=(P[i].tm&&P[i-1].tm)?(P[i].tm-P[i-1].tm)/1000:0,v=dt>0?d/dt:null;
@@ -382,7 +392,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
         if(v!==null&&v>=2&&grade<0.03)down+=d;             // moving over about 7 km/h and not climbing
       }
     });
-    return{all:all/1000,down:down/1000,first:first,pts:pts};
+    return{all:all/1000,down:down/1000,first:first,pts:pts,lat:pts?sLat/pts:0,lon:pts?sLon/pts:0};
   }
   function analyzeGpx(text){
     var doc=new DOMParser().parseFromString(text,"application/xml");
@@ -408,20 +418,49 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     }
     return analyzePoints(segs);
   }
-  var gpxEst=null,gpxHelp=$("gpxInfo").textContent;
-  function resetGpx(){gpxEst=null;$("km").readOnly=false;$("actualRow").hidden=true;$("actualKm").value="";$("gpx").value="";$("gpxInfo").textContent=gpxHelp}
-  $("clearGpx").onclick=function(){resetGpx();$("km").value=""};
+  var gpxEst=null,gpxLoc=null,locBusy=false,lookupId=0,gpxHelp=$("gpxInfo").textContent;
+  function clearImport(){lookupId++;locBusy=false;gpxEst=null;gpxLoc=null;$("km").value="";$("date").value="";$("note").value="";$("note").placeholder="Filled in automatically";$("actualRow").hidden=true;$("actualKm").value=""}
+  function resetGpx(){clearImport();$("gpx").value="";$("gpxInfo").textContent=gpxHelp}
+  async function lookupLocation(lat,lon){
+    var token=++lookupId;locBusy=true;gpxLoc=null;$("note").value="Looking up location...";
+    try{
+      var ctl=new AbortController(),tm=setTimeout(function(){ctl.abort()},7000);
+      var res=await fetch("https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=en&lat="+lat.toFixed(2)+"&lon="+lon.toFixed(2),{signal:ctl.signal});
+      clearTimeout(tm);
+      var j=await res.json(),ad=j.address||{};
+      var place=ad.village||ad.town||ad.city||ad.municipality||ad.county||ad.state_district||"";
+      var label=[place,ad.state||ad.region||"",ad.country||""].filter(function(x,i,arr){return x&&arr.indexOf(x)===i}).join(", ");
+      if(token!==lookupId)return;
+      gpxLoc=label||null;$("note").value=label;
+      if(!label)$("note").placeholder="Location not found";
+    }catch(e){
+      if(token!==lookupId)return;
+      gpxLoc=null;$("note").value="";$("note").placeholder="Location couldn't be looked up";
+    }
+    finally{if(token===lookupId)locBusy=false}
+  }
   $("gpx").onchange=async function(){
     var f=this.files[0],info=$("gpxInfo");if(!f)return;
     if(f.size>15*1024*1024){info.textContent="That file is too large (15 MB max).";this.value="";return}
     try{
       var r=analyzeGpx(await f.text());
-      if(!r.pts||r.all<=0){gpxEst=null;$("km").readOnly=false;$("actualRow").hidden=true;info.textContent="Read \""+f.name+"\" ("+Math.round(f.size/1024)+" KB) but found no GPS track points in it. Try exporting again from Slopes as GPX, and if it still fails tell me the export type you chose.";return}
+      if(!r.pts||r.all<=0){clearImport();info.textContent="Read \""+f.name+"\" ("+Math.round(f.size/1024)+" KB) but found no GPS track points in it. Try exporting again from Slopes as GPX, and if it still fails tell me the export type you chose.";return}
       var est=r.down>0?r.down:r.all;
       gpxEst=r1(est);$("km").value=gpxEst;$("km").readOnly=true;$("actualRow").hidden=false;$("actualKm").value="";
-      if(r.first){var dd=new Date(r.first);$("date").value=dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0")}
+      var dd=new Date(r.first||Date.now());$("date").value=dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0");
       info.textContent="Estimated "+r1(est)+" km on the snow (lifts left out). The whole file is "+r1(r.all)+" km including lifts. If you know the exact figure from your app, enter it below (it must be within 20 km of this estimate).";
-    }catch(err){gpxEst=null;$("km").readOnly=false;$("actualRow").hidden=true;info.textContent="Couldn't read \""+(f&&f.name)+"\" as a GPX file. In Slopes choose Export As, then GPX, and try again."}
+      lookupLocation(r.lat,r.lon);
+    }catch(err){clearImport();info.textContent="Couldn't read \""+(f&&f.name)+"\" as a GPX file. In Slopes choose Export As, then GPX, and try again."}
+  };
+
+  $("adminAddForm").onsubmit=async function(e){
+    e.preventDefault();
+    var v=parseFloat($("aKm").value);if(!(v>0&&v<=500)||!viewing||!isAdmin)return;
+    var b=e.target.querySelector("button");b.disabled=true;
+    var r=await sb.from("rides").insert({user_id:viewing,km:v,ride_date:$("aDate").value,note:$("aNote").value.trim().slice(0,80)||null});
+    b.disabled=false;
+    if(r.error){say("Couldn't add that ride.","err");return}
+    say("Ride added.","ok");$("aKm").value="";$("aNote").value="";refresh();
   };
 
   $("moreRides").onclick=function(){recentShown+=25;refresh()};
@@ -454,6 +493,8 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
 
   $("rideForm").onsubmit=async function(e){
     e.preventDefault();
+    if(gpxEst===null){say("Please import a GPX file to log a ride.","err");return}
+    if(locBusy){say("Still looking up the location. Please try again in a moment.","err");return}
     var v=parseFloat($("km").value);
     if(gpxEst!==null){
       var act=$("actualKm").value.trim();
@@ -466,7 +507,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     }
     if(!(v>0&&v<=500))return;
     var b=e.target.querySelector("button");b.disabled=true;
-    var r=await sb.from("rides").insert({km:v,ride_date:$("date").value,note:$("note").value.trim().slice(0,80)||null});
+    var r=await sb.from("rides").insert({km:v,ride_date:$("date").value,note:gpxLoc?gpxLoc.slice(0,80):null});
     b.disabled=false;
     if(r.error){say("Couldn't save that ride. Please try again.","err");return}
     say("");$("km").value="";$("note").value="";resetGpx();refresh();
@@ -478,7 +519,6 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     if(!on){isAdmin=false;viewing=null}
     $("authCard").hidden=on;$("app").hidden=!on;$("logout").hidden=!on;$("myprof").hidden=!on;if(!on){$("home").hidden=false;$("profileView").hidden=true}
     if(on){
-      $("date").valueAsDate=new Date();
       await ensureProfile(s.user);
       isAdmin=false;
       try{var q=await sb.from("admins").select("user_id").eq("user_id",s.user.id).maybeSingle();isAdmin=!!q.data}catch(e){}
