@@ -29,6 +29,12 @@ input,textarea{width:100%;font-family:inherit;padding:11px;border:1px solid var(
 .link{background:none;border:0;color:var(--accent);cursor:pointer;font-size:.9rem;padding:0;text-decoration:underline}
 .av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-weight:700;overflow:hidden;flex:none}
 .av img{width:100%;height:100%;object-fit:cover}
+.btn.danger{background:var(--bad);color:#fff;border:0}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
+.modalBox{background:var(--card);border-radius:14px;padding:18px;max-width:340px;width:100%}
+.cropWrap{position:relative;width:300px;height:300px;max-width:100%;margin:0 auto;overflow:hidden;border-radius:8px;background:#000}
+#cropCanvas{display:block;touch-action:none;cursor:grab}
+.cropMask{position:absolute;inset:0;pointer-events:none;border-radius:50%;box-shadow:0 0 0 999px rgba(0,0,0,.55)}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -65,7 +71,8 @@ input,textarea{width:100%;font-family:inherit;padding:11px;border:1px solid var(
     </div>
     <div class="card"><h2>Riders</h2><ul class="list" id="riders"></ul><p class="muted" id="empty">No rides logged yet. Be the first!</p></div>
     <div class="card"><h2>My rides</h2><ul class="list" id="mine"></ul><p class="muted" id="mineEmpty">You haven't logged any rides yet.</p></div>
-    <div class="card" id="adminCard" hidden><h2>Admin: all rides</h2><ul class="list" id="allRides"></ul><p class="muted">Only admin accounts can see this section and remove rides.</p></div>
+    <div class="card" id="adminCard" hidden><h2>Admin: all rides</h2><ul class="list" id="allRides"></ul>
+      <h2 style="margin-top:20px">Admin: accounts</h2><ul class="list" id="allAccounts"></ul><p class="muted">Only admin accounts can see this section, remove rides, and delete accounts.</p></div>
     </div>
     <div id="profileView" hidden>
       <p><button class="btn ghost" id="back" type="button">&larr; Back</button></p>
@@ -75,7 +82,7 @@ input,textarea{width:100%;font-family:inherit;padding:11px;border:1px solid var(
         <form id="editForm">
           <div><label for="pname">Display name</label><input id="pname" maxlength="40" required></div>
           <div><label for="pbio">About me / why I'm riding (up to 300 characters)</label><textarea id="pbio" maxlength="300" rows="4"></textarea></div>
-          <div><label for="pphoto">Profile photo (optional)</label><input id="pphoto" type="file" accept="image/*"></div>
+          <div><label for="pphoto">Profile photo (optional)</label><input id="pphoto" type="file" accept="image/*"><div id="photoPreview" style="margin-top:8px;display:flex;align-items:center"></div></div>
           <button class="btn" type="submit">Save profile</button>
         </form>
       </div>
@@ -83,6 +90,14 @@ input,textarea{width:100%;font-family:inherit;padding:11px;border:1px solid var(
     </div>
   </div>
 </div>
+
+<div id="cropModal" class="modal" hidden><div class="modalBox">
+  <h2>Adjust your photo</h2>
+  <p class="muted">Drag the photo to move it and use the slider to zoom. The circle shows what others will see.</p>
+  <div class="cropWrap"><canvas id="cropCanvas" width="300" height="300"></canvas><div class="cropMask"></div></div>
+  <input id="zoom" type="range" min="1" max="4" step="0.01" value="1" style="margin-top:12px">
+  <div style="display:flex;gap:8px;margin-top:12px"><button class="btn" id="cropOk" type="button">Use this photo</button><button class="btn ghost" id="cropCancel" type="button">Cancel</button></div>
+</div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1"></script>
 <script src="config.js"></script>
@@ -147,17 +162,46 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     else{d.textContent=((p&&p.display_name)||"?").charAt(0).toUpperCase()}
     return d;
   }
-  function toJpeg(file){return new Promise(function(res,rej){
+  var CS=300,crop={img:null,scale:1,min:1,x:0,y:0},cropBlob=null,drag=null;
+  function clampCrop(){var w=crop.img.width*crop.scale,h=crop.img.height*crop.scale;crop.x=Math.min(0,Math.max(CS-w,crop.x));crop.y=Math.min(0,Math.max(CS-h,crop.y))}
+  function drawCrop(){clampCrop();var c=$("cropCanvas").getContext("2d");c.clearRect(0,0,CS,CS);c.drawImage(crop.img,crop.x,crop.y,crop.img.width*crop.scale,crop.img.height*crop.scale)}
+  function openCrop(file){
     var img=new Image(),u=URL.createObjectURL(file);
-    img.onload=function(){var S=256,c=document.createElement("canvas");c.width=c.height=S;
-      var m=Math.min(img.width,img.height);
-      c.getContext("2d").drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,S,S);
-      URL.revokeObjectURL(u);c.toBlob(function(b){b?res(b):rej()},"image/jpeg",0.85)};
-    img.onerror=function(){rej()};img.src=u})}
+    img.onload=function(){
+      URL.revokeObjectURL(u);crop.img=img;crop.min=CS/Math.min(img.width,img.height);crop.scale=crop.min;
+      crop.x=(CS-img.width*crop.scale)/2;crop.y=(CS-img.height*crop.scale)/2;
+      $("zoom").value=1;$("cropModal").hidden=false;drawCrop();
+    };
+    img.onerror=function(){say("That file couldn't be read as an image.","err");$("pphoto").value=""};
+    img.src=u;
+  }
+  $("pphoto").onchange=function(){var f=this.files[0];if(f)openCrop(f)};
+  $("zoom").oninput=function(){
+    var cx=(CS/2-crop.x)/crop.scale,cy=(CS/2-crop.y)/crop.scale;
+    crop.scale=crop.min*parseFloat(this.value);crop.x=CS/2-cx*crop.scale;crop.y=CS/2-cy*crop.scale;drawCrop();
+  };
+  var cv=$("cropCanvas");
+  cv.onpointerdown=function(e){drag={x:e.clientX,y:e.clientY,ox:crop.x,oy:crop.y};cv.setPointerCapture(e.pointerId);cv.style.cursor="grabbing"};
+  cv.onpointermove=function(e){if(!drag)return;var k=CS/cv.getBoundingClientRect().width;crop.x=drag.ox+(e.clientX-drag.x)*k;crop.y=drag.oy+(e.clientY-drag.y)*k;drawCrop()};
+  cv.onpointerup=cv.onpointercancel=function(){drag=null;cv.style.cursor="grab"};
+  $("cropCancel").onclick=function(){$("cropModal").hidden=true;$("pphoto").value=""};
+  $("cropOk").onclick=function(){
+    var o=document.createElement("canvas");o.width=o.height=256;
+    o.getContext("2d").drawImage(crop.img,-crop.x/crop.scale,-crop.y/crop.scale,CS/crop.scale,CS/crop.scale,0,0,256,256);
+    o.toBlob(function(blob){
+      if(!blob){say("Couldn't prepare that photo. Please try another.","err");return}
+      cropBlob=blob;$("cropModal").hidden=true;
+      var pv=$("photoPreview");pv.innerHTML="";
+      var d=document.createElement("span");d.className="av";d.style.width=d.style.height="72px";
+      var im=document.createElement("img");im.src=URL.createObjectURL(blob);im.alt="";d.appendChild(im);pv.appendChild(d);
+      var t=document.createElement("span");t.className="muted";t.style.marginLeft="10px";t.textContent="New photo ready. Click Save profile to keep it.";pv.appendChild(t);
+    },"image/jpeg",0.88);
+  };
+  function clearPhoto(){cropBlob=null;$("pphoto").value="";$("photoPreview").innerHTML=""}
 
   function openProfile(id){
     viewing=id;
-    if(id===session.user.id){var p=profiles[id]||{};$("pname").value=p.display_name||"";$("pbio").value=p.bio||"";$("pphoto").value=""}
+    if(id===session.user.id){var p=profiles[id]||{};$("pname").value=p.display_name||"";$("pbio").value=p.bio||"";clearPhoto()}
     say("");renderProfile();window.scrollTo(0,0);
   }
   function renderProfile(){
@@ -187,16 +231,15 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     try{
       var uid=session.user.id,upd={display_name:$("pname").value.trim().slice(0,40),bio:$("pbio").value.trim().slice(0,300)||null};
       if(!upd.display_name){say("Please enter a display name.","err");return}
-      var f=$("pphoto").files[0];
-      if(f){
-        var blob=await toJpeg(f),path=uid+"/avatar.jpg";
+      if(cropBlob){
+        var blob=cropBlob,path=uid+"/avatar.jpg";
         var up=await sb.storage.from("avatars").upload(path,blob,{upsert:true,contentType:"image/jpeg"});
         if(up.error){say("Couldn't upload the photo. Please try a different image.","err");return}
         upd.avatar_url=sb.storage.from("avatars").getPublicUrl(path).data.publicUrl+"?v="+Date.now();
       }
       var r=await sb.from("profiles").update(upd).eq("id",uid);
       if(r.error){say("Couldn't save your profile. Please try again.","err");return}
-      $("pphoto").value="";say("Profile saved.","ok");await refresh();
+      clearPhoto();say("Profile saved.","ok");await refresh();
     }catch(err){say("Something went wrong. Please try again.","err")}
     finally{btn.disabled=false}
   };
@@ -241,8 +284,28 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
         var b=document.createElement("button");b.className="btn ghost";b.textContent="Remove";b.style.padding="4px 10px";
         b.onclick=function(){removeRide(r.id)};e.appendChild(b);al.appendChild(e);
       });
+      var ac=$("allAccounts");ac.innerHTML="";
+      Object.keys(profiles).filter(function(id){return id!==session.user.id}).sort(function(a,b){return (names[a]||"").localeCompare(names[b]||"")}).forEach(function(id){
+        var n=rs.data.filter(function(r){return r.user_id===id}).length;
+        var e=li((names[id]||"Someone")+" · "+n+" ride"+(n===1?"":"s"),"");
+        e.style.alignItems="center";
+        var b=document.createElement("button");b.className="btn danger";b.textContent="Delete account";b.style.padding="4px 10px";
+        b.onclick=function(){removeAccount(id)};e.replaceChild(b,e.lastChild);ac.appendChild(e);
+      });
     }
     if(viewing)renderProfile();
+  }
+
+  async function removeAccount(id){
+    var p=profiles[id]||{display_name:"this person"},n=lastRides.filter(function(r){return r.user_id===id}).length;
+    if(!confirm("Step 1 of 3: Delete the account for \""+p.display_name+"\"?\n\nThis permanently removes their profile and their "+n+" logged ride(s)."))return;
+    if(!confirm("Step 2 of 3: Are you absolutely sure?\n\nThis cannot be undone, and they will lose access to the site."))return;
+    var t=prompt("Step 3 of 3: To confirm, type this display name exactly:\n\n"+p.display_name);
+    if(t===null||t.trim().toLowerCase()!==p.display_name.trim().toLowerCase()){say("The account was not deleted because the name didn't match.","err");return}
+    var r=await sb.rpc("delete_user_account",{target:id});
+    if(r.error){say("Couldn't delete that account: "+r.error.message,"err");return}
+    try{await sb.storage.from("avatars").remove([id+"/avatar.jpg"])}catch(e){}
+    say("Account deleted.","ok");refresh();
   }
 
   async function removeRide(id){
