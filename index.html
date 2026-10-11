@@ -70,9 +70,9 @@ input,textarea{width:100%;font-family:inherit;padding:11px;border:1px solid var(
       </form>
     </div>
     <div class="card"><h2>Riders</h2><ul class="list" id="riders"></ul><p class="muted" id="empty">No rides logged yet. Be the first!</p></div>
+    <div class="card"><h2>Recent rides</h2><ul class="list" id="recent"></ul><p class="muted" id="recentEmpty">No rides logged yet.</p><button class="btn ghost" id="moreRides" type="button" hidden style="margin-top:12px">Show more</button></div>
     <div class="card"><h2>My rides</h2><ul class="list" id="mine"></ul><p class="muted" id="mineEmpty">You haven't logged any rides yet.</p></div>
-    <div class="card" id="adminCard" hidden><h2>Admin: all rides</h2><ul class="list" id="allRides"></ul>
-      <h2 style="margin-top:20px">Admin: accounts</h2><ul class="list" id="allAccounts"></ul><p class="muted">Only admin accounts can see this section, remove rides, and delete accounts.</p></div>
+    <div class="card" id="adminCard" hidden><h2>Admin: accounts</h2><ul class="list" id="allAccounts"></ul><p class="muted">Only admin accounts can see this section and delete accounts. Admins also see a Remove button on each ride in Recent rides.</p></div>
     </div>
     <div id="profileView" hidden>
       <p><button class="btn ghost" id="back" type="button">&larr; Back</button></p>
@@ -112,7 +112,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   say("Setup needed: open config.js and paste in your Supabase Project URL and publishable key.","err");
 } else {
   var sb=supabase.createClient(C.SUPABASE_URL,C.SUPABASE_KEY);
-  var signup=false,session=null,isAdmin=false,profiles={},lastRides=[],viewing=null;
+  var signup=false,session=null,isAdmin=false,profiles={},lastRides=[],viewing=null,recentShown=25;
 
   function setMode(s){
     signup=s;
@@ -220,7 +220,14 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     $("editCard").hidden=!mine;
     var ul=$("profRides");ul.innerHTML="";
     $("profNoRides").hidden=rides.length>0;
-    rides.forEach(function(r){ul.appendChild(li(r.ride_date+(r.note?" · "+r.note:""),r1(Number(r.km))+" km"))});
+    rides.forEach(function(r){
+      var e=li(r.ride_date+(r.note?" · "+r.note:""),"");
+      e.style.alignItems="center";
+      var k=document.createElement("span");k.style.cssText="display:flex;align-items:center;gap:10px;white-space:nowrap";
+      var km=document.createElement("span");km.textContent=r1(Number(r.km))+" km";k.appendChild(km);
+      if(isAdmin){var b=document.createElement("button");b.className="btn ghost";b.textContent="Remove";b.style.padding="4px 10px";b.onclick=function(){removeRide(r.id)};k.appendChild(b)}
+      e.replaceChild(k,e.lastChild);ul.appendChild(e);
+    });
   }
   $("back").onclick=function(){viewing=null;$("profileView").hidden=true;$("home").hidden=false;say("")};
   $("myprof").onclick=function(){openProfile(session.user.id)};
@@ -253,7 +260,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   }
 
   async function refresh(){
-    var rs=await sb.from("rides").select("id,user_id,km,ride_date,note,created_at").order("ride_date",{ascending:false});
+    var rs=await sb.from("rides").select("id,user_id,km,ride_date,note,created_at").order("ride_date",{ascending:false}).order("created_at",{ascending:false});
     var ps=await sb.from("profiles").select("id,display_name,bio,avatar_url");
     if(rs.error||ps.error){say("Couldn't load rides right now.","err");return}
     var names={};profiles={};lastRides=rs.data;ps.data.forEach(function(p){names[p.id]=p.display_name;profiles[p.id]=p});
@@ -275,15 +282,24 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     var mine=rs.data.filter(function(r){return r.user_id===session.user.id}),m=$("mine");m.innerHTML="";
     $("mineEmpty").hidden=mine.length>0;
     mine.forEach(function(r){m.appendChild(li(r.ride_date+(r.note?" · "+r.note:""),r1(Number(r.km))+" km"))});
+    var rl=$("recent");rl.innerHTML="";
+    $("recentEmpty").hidden=rs.data.length>0;
+    rs.data.slice(0,recentShown).forEach(function(r){
+      var e=document.createElement("li");e.style.alignItems="center";
+      var l=document.createElement("span");l.style.cssText="display:flex;align-items:center;gap:10px;min-width:0";
+      l.appendChild(avatar(profiles[r.user_id],32));
+      var t=document.createElement("span");
+      var nb=document.createElement("button");nb.className="link";nb.style.fontSize="1rem";nb.textContent=names[r.user_id]||"Someone";nb.onclick=function(){openProfile(r.user_id)};
+      var sub=document.createElement("div");sub.className="muted";sub.textContent=r.ride_date+(r.note?" · "+r.note:"");
+      t.appendChild(nb);t.appendChild(sub);l.appendChild(t);
+      var k=document.createElement("span");k.style.cssText="display:flex;align-items:center;gap:10px;white-space:nowrap";
+      var km=document.createElement("span");km.textContent=r1(Number(r.km))+" km";k.appendChild(km);
+      if(isAdmin){var b=document.createElement("button");b.className="btn ghost";b.textContent="Remove";b.style.padding="4px 10px";b.onclick=function(){removeRide(r.id)};k.appendChild(b)}
+      e.appendChild(l);e.appendChild(k);rl.appendChild(e);
+    });
+    $("moreRides").hidden=rs.data.length<=recentShown;
     $("adminCard").hidden=!isAdmin;
     if(isAdmin){
-      var al=$("allRides");al.innerHTML="";
-      rs.data.forEach(function(r){
-        var e=li((names[r.user_id]||"Someone")+" · "+r.ride_date+(r.note?" · "+r.note:""),r1(Number(r.km))+" km");
-        e.style.alignItems="center";
-        var b=document.createElement("button");b.className="btn ghost";b.textContent="Remove";b.style.padding="4px 10px";
-        b.onclick=function(){removeRide(r.id)};e.appendChild(b);al.appendChild(e);
-      });
       var ac=$("allAccounts");ac.innerHTML="";
       Object.keys(profiles).filter(function(id){return id!==session.user.id}).sort(function(a,b){return (names[a]||"").localeCompare(names[b]||"")}).forEach(function(id){
         var n=rs.data.filter(function(r){return r.user_id===id}).length;
@@ -307,6 +323,8 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     try{await sb.storage.from("avatars").remove([id+"/avatar.jpg"])}catch(e){}
     say("Account deleted.","ok");refresh();
   }
+
+  $("moreRides").onclick=function(){recentShown+=25;refresh()};
 
   async function removeRide(id){
     if(!confirm("Remove this ride? This can't be undone."))return;
