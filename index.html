@@ -24,7 +24,7 @@ h1{font-size:1.9rem;margin:8px 0 16px}h2{font-size:1.15rem;margin:0 0 12px}
 form{display:grid;gap:10px}
 label{font-size:.85rem;color:var(--muted)}
 input{width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:1rem}
-.msg{margin:0 0 12px;font-size:.9rem}.msg.err{color:var(--bad)}.msg.ok{color:var(--accent2)}
+.msg{margin:0 0 12px;font-size:1rem;padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--card)}.msg.err{color:var(--bad);border-color:var(--bad)}.msg.ok{border-color:var(--accent2)}
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .link{background:none;border:0;color:var(--accent);cursor:pointer;font-size:.9rem;padding:0;text-decoration:underline}
 [hidden]{display:none!important}
@@ -62,6 +62,7 @@ input{width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;
     </div>
     <div class="card"><h2>Riders</h2><ul class="list" id="riders"></ul><p class="muted" id="empty">No rides logged yet. Be the first!</p></div>
     <div class="card"><h2>My rides</h2><ul class="list" id="mine"></ul><p class="muted" id="mineEmpty">You haven't logged any rides yet.</p></div>
+    <div class="card" id="adminCard" hidden><h2>Admin: all rides</h2><ul class="list" id="allRides"></ul><p class="muted">Only admin accounts can see this section and remove rides.</p></div>
   </div>
 </div>
 
@@ -78,7 +79,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   say("Setup needed: open config.js and paste in your Supabase Project URL and publishable key.","err");
 } else {
   var sb=supabase.createClient(C.SUPABASE_URL,C.SUPABASE_KEY);
-  var signup=false,session=null;
+  var signup=false,session=null,isAdmin=false;
 
   function setMode(s){
     signup=s;
@@ -102,8 +103,8 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
         if(!name){say("Please enter a display name.","err");return}
         var r=await sb.auth.signUp({email:email,password:pw,options:{data:{display_name:name},emailRedirectTo:location.origin+location.pathname}});
         if(r.error){say(r.error.message,"err");return}
-        say("Almost done! Check your email and click the confirmation link, then come back and log in.","ok");
         setMode(false);
+        say("An email has been sent to "+email+". Please confirm this is you by clicking the link inside, then come back here and log in.","ok");
       } else {
         var l=await sb.auth.signInWithPassword({email:email,password:pw});
         if(l.error){say(l.error.message,"err")}
@@ -130,7 +131,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   }
 
   async function refresh(){
-    var rs=await sb.from("rides").select("user_id,km,ride_date,note,created_at").order("ride_date",{ascending:false});
+    var rs=await sb.from("rides").select("id,user_id,km,ride_date,note,created_at").order("ride_date",{ascending:false});
     var ps=await sb.from("profiles").select("id,display_name");
     if(rs.error||ps.error){say("Couldn't load rides right now.","err");return}
     var names={};ps.data.forEach(function(p){names[p.id]=p.display_name});
@@ -144,6 +145,23 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     var mine=rs.data.filter(function(r){return r.user_id===session.user.id}),m=$("mine");m.innerHTML="";
     $("mineEmpty").hidden=mine.length>0;
     mine.forEach(function(r){m.appendChild(li(r.ride_date+(r.note?" · "+r.note:""),r1(Number(r.km))+" km"))});
+    $("adminCard").hidden=!isAdmin;
+    if(isAdmin){
+      var al=$("allRides");al.innerHTML="";
+      rs.data.forEach(function(r){
+        var e=li((names[r.user_id]||"Someone")+" · "+r.ride_date+(r.note?" · "+r.note:""),r1(Number(r.km))+" km");
+        e.style.alignItems="center";
+        var b=document.createElement("button");b.className="btn ghost";b.textContent="Remove";b.style.padding="4px 10px";
+        b.onclick=function(){removeRide(r.id)};e.appendChild(b);al.appendChild(e);
+      });
+    }
+  }
+
+  async function removeRide(id){
+    if(!confirm("Remove this ride? This can't be undone."))return;
+    var r=await sb.from("rides").delete().eq("id",id).select();
+    if(r.error||!r.data||!r.data.length){say("Couldn't remove that ride.","err");return}
+    say("Ride removed.","ok");refresh();
   }
 
   $("rideForm").onsubmit=async function(e){
@@ -160,10 +178,13 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   async function show(s){
     session=s;
     var on=!!s;
+    if(!on)isAdmin=false;
     $("authCard").hidden=on;$("app").hidden=!on;$("logout").hidden=!on;
     if(on){
       $("date").valueAsDate=new Date();
       await ensureProfile(s.user);
+      isAdmin=false;
+      try{var q=await sb.from("admins").select("user_id").eq("user_id",s.user.id).maybeSingle();isAdmin=!!q.data}catch(e){}
       refresh();
     }
   }
