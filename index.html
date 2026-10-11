@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shred for a Cause</title>
+<style>
+:root{--bg:#f4f8fc;--card:#fff;--text:#14233a;--muted:#5b6b82;--accent:#1d6fe0;--accent2:#12b5a6;--border:#d3dfec;--bad:#c0392b}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1826;--card:#18253a;--text:#e8eef7;--muted:#9fb0c8;--accent:#5aa2ff;--accent2:#35d0c0;--border:#2a3b57;--bad:#ff7a6b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.5}
+.wrap{max-width:720px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.9rem;margin:8px 0 16px}h2{font-size:1.15rem;margin:0 0 12px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px}
+.hero{text-align:center;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:0}
+.hero .big{font-size:3rem;font-weight:800;line-height:1.1}
+.btn{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:11px 18px;font-size:1rem;font-weight:600;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--border)}
+.btn:disabled{opacity:.6;cursor:default}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.list li:last-child{border-bottom:0}
+.muted{color:var(--muted);font-size:.85rem}
+form{display:grid;gap:10px}
+label{font-size:.85rem;color:var(--muted)}
+input{width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:1rem}
+.msg{margin:0 0 12px;font-size:.9rem}.msg.err{color:var(--bad)}.msg.ok{color:var(--accent2)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.link{background:none;border:0;color:var(--accent);cursor:pointer;font-size:.9rem;padding:0;text-decoration:underline}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><h1>Shred for a Cause</h1><button class="btn ghost" id="logout" hidden>Log out</button></div>
+  <p class="msg" id="msg" hidden></p>
+
+  <!-- Signed-out view -->
+  <div class="card" id="authCard" hidden>
+    <h2 id="authTitle">Log in</h2>
+    <form id="authForm">
+      <div id="nameRow" hidden><label for="dname">Display name</label><input id="dname" maxlength="40" autocomplete="nickname"></div>
+      <div><label for="email">Email</label><input id="email" type="email" required autocomplete="email"></div>
+      <div><label for="pw">Password (at least 8 characters)</label><input id="pw" type="password" minlength="8" required autocomplete="current-password"></div>
+      <button class="btn" id="authBtn" type="submit">Log in</button>
+    </form>
+    <p class="muted" style="margin-top:12px"><button class="link" id="toggle" type="button">New here? Create an account</button>
+      <span id="forgotWrap"> &middot; <button class="link" id="forgot" type="button">Forgot password?</button></span></p>
+  </div>
+
+  <!-- Signed-in view -->
+  <div id="app" hidden>
+    <div class="card hero"><div>In total we have skied &amp; snowboarded</div><div class="big"><span id="total">0</span> km!</div></div>
+    <div class="card">
+      <h2>Log a ride</h2>
+      <form id="rideForm">
+        <input id="km" type="number" min="0.1" max="500" step="0.1" required placeholder="Distance (km) from your tracking app">
+        <input id="date" type="date" required>
+        <input id="note" maxlength="80" placeholder="Where did you ride? (optional)">
+        <button class="btn" type="submit">Log this ride</button>
+      </form>
+    </div>
+    <div class="card"><h2>Riders</h2><ul class="list" id="riders"></ul><p class="muted" id="empty">No rides logged yet. Be the first!</p></div>
+    <div class="card"><h2>My rides</h2><ul class="list" id="mine"></ul><p class="muted" id="mineEmpty">You haven't logged any rides yet.</p></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1"></script>
+<script src="config.js"></script>
+<script>
+var C=window.SITE_CONFIG||{};
+var $=function(id){return document.getElementById(id)};
+function say(t,kind){var m=$("msg");m.textContent=t||"";m.className="msg"+(kind?" "+kind:"");m.hidden=!t}
+function li(l,r){var e=document.createElement("li"),a=document.createElement("span"),b=document.createElement("span");a.textContent=l;b.textContent=r;e.appendChild(a);e.appendChild(b);return e}
+function r1(n){return Math.round(n*10)/10}
+
+if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
+  say("Setup needed: open config.js and paste in your Supabase Project URL and publishable key.","err");
+} else {
+  var sb=supabase.createClient(C.SUPABASE_URL,C.SUPABASE_KEY);
+  var signup=false,session=null;
+
+  function setMode(s){
+    signup=s;
+    $("authTitle").textContent=s?"Create an account":"Log in";
+    $("authBtn").textContent=s?"Sign up":"Log in";
+    $("toggle").textContent=s?"Already have an account? Log in":"New here? Create an account";
+    $("nameRow").hidden=!s;$("dname").required=s;
+    $("forgotWrap").hidden=s;
+    $("pw").autocomplete=s?"new-password":"current-password";
+    say("");
+  }
+  $("toggle").onclick=function(){setMode(!signup)};
+
+  $("authForm").onsubmit=async function(e){
+    e.preventDefault();say("");
+    var email=$("email").value.trim(),pw=$("pw").value,btn=$("authBtn");
+    btn.disabled=true;
+    try{
+      if(signup){
+        var name=$("dname").value.trim();
+        if(!name){say("Please enter a display name.","err");return}
+        var r=await sb.auth.signUp({email:email,password:pw,options:{data:{display_name:name},emailRedirectTo:location.origin+location.pathname}});
+        if(r.error){say(r.error.message,"err");return}
+        say("Almost done! Check your email and click the confirmation link, then come back and log in.","ok");
+        setMode(false);
+      } else {
+        var l=await sb.auth.signInWithPassword({email:email,password:pw});
+        if(l.error){say(l.error.message,"err")}
+      }
+    }catch(err){say("Something went wrong. Please try again.","err")}
+    finally{btn.disabled=false}
+  };
+
+  $("forgot").onclick=async function(){
+    var email=$("email").value.trim();
+    if(!email){say("Type your email above first, then click 'Forgot password?'.","err");return}
+    var r=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
+    say(r.error?r.error.message:"If that email has an account, a reset link is on its way.",r.error?"err":"ok");
+  };
+
+  $("logout").onclick=function(){sb.auth.signOut()};
+
+  async function ensureProfile(user){
+    var p=await sb.from("profiles").select("id").eq("id",user.id).maybeSingle();
+    if(!p.data){
+      var n=(user.user_metadata&&user.user_metadata.display_name)||user.email.split("@")[0];
+      await sb.from("profiles").insert({id:user.id,display_name:String(n).slice(0,40)});
+    }
+  }
+
+  async function refresh(){
+    var rs=await sb.from("rides").select("user_id,km,ride_date,note,created_at").order("ride_date",{ascending:false});
+    var ps=await sb.from("profiles").select("id,display_name");
+    if(rs.error||ps.error){say("Couldn't load rides right now.","err");return}
+    var names={};ps.data.forEach(function(p){names[p.id]=p.display_name});
+    var sum=0,by={};
+    rs.data.forEach(function(r){var k=Number(r.km)||0;sum+=k;by[r.user_id]=(by[r.user_id]||0)+k});
+    $("total").textContent=r1(sum).toLocaleString();
+    var ul=$("riders");ul.innerHTML="";
+    var ids=Object.keys(by).sort(function(a,b){return by[b]-by[a]});
+    $("empty").hidden=ids.length>0;
+    ids.forEach(function(id){ul.appendChild(li(names[id]||"Someone",r1(by[id])+" km"))});
+    var mine=rs.data.filter(function(r){return r.user_id===session.user.id}),m=$("mine");m.innerHTML="";
+    $("mineEmpty").hidden=mine.length>0;
+    mine.forEach(function(r){m.appendChild(li(r.ride_date+(r.note?" · "+r.note:""),r1(Number(r.km))+" km"))});
+  }
+
+  $("rideForm").onsubmit=async function(e){
+    e.preventDefault();
+    var v=parseFloat($("km").value);
+    if(!(v>0&&v<=500))return;
+    var b=e.target.querySelector("button");b.disabled=true;
+    var r=await sb.from("rides").insert({km:v,ride_date:$("date").value,note:$("note").value.trim().slice(0,80)||null});
+    b.disabled=false;
+    if(r.error){say("Couldn't save that ride. Please try again.","err");return}
+    say("");$("km").value="";$("note").value="";refresh();
+  };
+
+  async function show(s){
+    session=s;
+    var on=!!s;
+    $("authCard").hidden=on;$("app").hidden=!on;$("logout").hidden=!on;
+    if(on){
+      $("date").valueAsDate=new Date();
+      await ensureProfile(s.user);
+      refresh();
+    }
+  }
+
+  sb.auth.onAuthStateChange(function(ev,s){
+    if(ev==="PASSWORD_RECOVERY"){
+      var np=prompt("Choose a new password (at least 8 characters):");
+      if(np&&np.length>=8){sb.auth.updateUser({password:np}).then(function(r){say(r.error?r.error.message:"Password updated.",r.error?"err":"ok")})}
+    }
+    setTimeout(function(){show(s)},0);
+  });
+  setMode(false);
+  sb.auth.getSession().then(function(r){show(r.data.session)});
+}
+</script>
+</body>
+</html>
