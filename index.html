@@ -470,8 +470,8 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     var ps=await sb.from("profiles").select("id,display_name,bio,avatar_url,created_at,deleted_at");
     var fr=await sb.from("friend_links").select("requester,addressee,status");friends={};links={};
     if(!fr.error&&fr.data)fr.data.forEach(function(x){var o=x.requester===session.user.id?x.addressee:x.requester;links[o]=x;if(x.status==="accepted")friends[o]=true});
-    var dn=await sb.from("donations").select("id,volunteer,amount,donor_name,status,created_at").order("created_at",{ascending:false});
-    donations=(dn.error||!dn.data)?[]:dn.data;
+    var dn=await sb.from("donations").select("id,volunteer,amount,donor_name,status,created_at,deleted_at").order("created_at",{ascending:false});
+    var alld=(dn.error||!dn.data)?[]:dn.data;donations=alld.filter(function(d){return !d.deleted_at});var deletedDonations=alld.filter(function(d){return d.deleted_at});
     if(rs.error||ps.error){say("Couldn't load rides right now.","err");return}
     var deletedRides=rs.data.filter(function(r){return r.deleted_at}),deletedProfiles=ps.data.filter(function(p){return p.deleted_at});
     rs.data=rs.data.filter(function(r){return !r.deleted_at});ps.data=ps.data.filter(function(p){return !p.deleted_at});
@@ -535,6 +535,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
       var items=[];
       deletedProfiles.forEach(function(p){items.push({label:p.display_name+" · account · "+left(p.deleted_at),btn:"Restore account",fn:function(){restoreAccount(p.id)},t:p.deleted_at})});
       deletedRides.filter(function(r){return !dn[r.user_id]}).forEach(function(r){items.push({label:(names[r.user_id]||"Someone")+" · "+r.ride_date+" · "+r1(Number(r.km))+" km · "+left(r.deleted_at),btn:"Restore ride",fn:function(){restoreRide(r.id)},t:r.deleted_at})});
+      deletedDonations.forEach(function(d){items.push({label:"Donation "+money(d.amount)+" · for "+(d.volunteer?(names[d.volunteer]||"Someone"):"No specific skier")+" · from "+(d.donor_name||"Anonymous")+" · "+left(d.deleted_at),btn:"Restore donation",fn:function(){restoreDonation(d.id)},t:d.deleted_at})});
       items.sort(function(a,b){return b.t.localeCompare(a.t)});
       $("deletedEmpty").hidden=items.length>0;
       items.forEach(function(it){var e=li(it.label,"");e.style.alignItems="center";var bt=document.createElement("button");bt.className="btn ghost";bt.textContent=it.btn;bt.style.padding="4px 10px";bt.onclick=it.fn;e.replaceChild(bt,e.lastChild);dl.appendChild(e)});
@@ -879,10 +880,15 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     say("Donation confirmed.","ok");refresh();
   }
   async function removeDonation(id){
-    if(!confirm("Remove this donation record? This can't be undone."))return;
+    if(!confirm("Remove this donation record? An admin can restore it for 3 days; after that it is permanently deleted."))return;
     var r=await sb.rpc("delete_donation",{donation_id:id});
     if(r.error){say("Couldn't remove that donation record.","err");return}
-    say("Donation record removed.","ok");refresh();
+    say("Donation record removed. You can restore it for 3 days under Recently deleted.","ok");refresh();
+  }
+  async function restoreDonation(id){
+    var r=await sb.rpc("restore_donation",{donation_id:id});
+    if(r.error){say("Couldn't restore that donation record.","err");return}
+    say("Donation record restored.","ok");refresh();
   }
 
   async function loadVolunteers(){
