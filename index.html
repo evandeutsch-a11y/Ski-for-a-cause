@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Shred for a Cause</title>
+<title>Carve for a Cause</title>
 <script>try{var t=localStorage.getItem("shred-theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 <style>
 :root{color-scheme:light;--bg:#eaf6f8;--card:#fdfeff;--text:#143036;--muted:#557680;--accent:#1a7f98;--accent2:#3f9d86;--purple:#6d5c9c;--border:#cfe5ea;--bad:#b83b2e;--on-accent:#fff;--shadow:0 6px 20px rgba(20,48,54,.09);--title:#0e3b47;--sky1:#c9e8f1;--sky2:#eaf6f8;--cloud:#fff;--m1:#bfe0ea;--m2:#9ccfde;--m3:#78b8cc;--ice:#d8f0f4;--water:#86d0d4;--t1:#3e7d6a;--t2:#5d5088;--t3:#2f6f8f}
@@ -23,6 +23,8 @@ h2::before{content:"";width:5px;height:1.05em;border-radius:3px;background:linea
 .hero{text-align:center;background:linear-gradient(135deg,var(--accent),var(--purple));color:var(--on-accent);border:0}
 .hero .big{font-size:3rem;font-weight:800;line-height:1.1}
 .btn{background:var(--accent);color:var(--on-accent);border:0;border-radius:999px;padding:11px 20px;font-size:1rem;font-weight:600;cursor:pointer}
+a.btn{text-decoration:none;display:inline-block}
+a:not(.btn){color:var(--accent)}
 .btn.ghost{background:var(--card);color:var(--accent);border:1px solid var(--border)}
 .btn:disabled{opacity:.6;cursor:default}
 .list{list-style:none;margin:0;padding:0}
@@ -54,6 +56,10 @@ input[type=search]{-webkit-appearance:none;appearance:none}
 .bubble small{display:block;opacity:.7;font-size:.72rem;margin-top:2px}
 .bubble.me{background:var(--accent);color:var(--on-accent);margin-left:auto;border-bottom-right-radius:4px}
 .bubble.them{background:var(--bg);border:1px solid var(--border);border-bottom-left-radius:4px}
+input[type=checkbox]{width:auto;margin:0 8px 0 0;vertical-align:middle}
+label.chk{display:flex;align-items:center;font-size:.9rem;color:var(--text)}
+.chip{font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 8px;border:1px solid var(--border);color:var(--muted)}
+.chip.ok{border-color:var(--accent);color:var(--accent)}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -97,26 +103,52 @@ input[type=search]{-webkit-appearance:none;appearance:none}
 </svg>
 </div>
 <div class="wrap">
-  <div class="top"><h1>Shred for a Cause</h1><div><button class="btn ghost" id="themeBtn" type="button">Dark mode</button> <button class="btn ghost" id="msgBtn" hidden>Messages</button> <button class="btn ghost" id="myprof" hidden>My profile</button> <button class="btn ghost" id="logout" hidden>Log out</button></div></div>
+  <div class="top"><h1>Carve for a Cause</h1><div><button class="btn" id="donateBtn" type="button">Donate</button> <button class="btn ghost" id="themeBtn" type="button">Dark mode</button> <button class="btn ghost" id="msgBtn" hidden>Messages</button> <button class="btn ghost" id="myprof" hidden>My profile</button> <button class="btn ghost" id="logout" hidden>Log out</button></div></div>
   <p class="msg" id="msg" hidden></p>
 
   <!-- Signed-out view -->
   <div class="card" id="authCard" hidden>
     <h2 id="authTitle">Log in</h2>
+    <p class="muted" style="margin:-4px 0 12px">Skiing and snowboarding to raise money for the Alzheimer Society of Canada. <button class="link" id="loginDonate" type="button">Donate here</button>, no account needed.</p>
     <form id="authForm">
       <div id="nameRow" hidden><label for="dname">Display name</label><input id="dname" maxlength="40" autocomplete="nickname"></div>
       <div><label for="email">Email</label><input id="email" type="email" required autocomplete="email"></div>
       <div><label for="pw">Password (at least 8 characters)</label><input id="pw" type="password" minlength="8" required autocomplete="current-password"></div>
+      <div id="pubRow" hidden><p class="muted" style="margin:0 0 8px">Your display name is public. Anyone who visits the site, even without logging in, can see it in the list of volunteers people can donate for. Your photo, bio and rides are only visible to people who log in.</p><label class="chk"><input type="checkbox" id="pubAck"> I understand my display name will be public</label></div>
       <button class="btn" id="authBtn" type="submit">Log in</button>
     </form>
     <p class="muted" style="margin-top:12px"><button class="link" id="toggle" type="button">New here? Create an account</button>
       <span id="forgotWrap"> &middot; <button class="link" id="forgot" type="button">Forgot password?</button></span></p>
   </div>
 
+  <!-- Donate view (public) -->
+  <div id="donateView" hidden>
+    <p><button class="btn ghost" id="donateBack" type="button">&larr; Back</button></p>
+    <div class="card">
+      <h2>Donations</h2>
+      <p style="margin:0 0 12px">We are fundraising for the Alzheimer Society of Canada. If you would like to donate in the name of one of our volunteers, tell us who it is for and how much you plan to give. Then we'll take you to the fundraiser page to complete your donation.</p>
+      <form id="donateForm">
+        <div><label for="dWho">Who are you donating for?</label><select id="dWho" required style="width:100%"></select></div>
+        <div><label for="dAmt">How much are you donating? (CAD)</label><input id="dAmt" type="number" min="1" max="100000" step="0.01" required placeholder="25.00" inputmode="decimal"></div>
+        <div><label for="dName">Your name (optional, shown to the volunteer so they can thank you)</label><input id="dName" maxlength="60" autocomplete="name"></div>
+        <button class="btn" type="submit">Continue to donate</button>
+      </form>
+      <div id="dThanks" hidden>
+        <p id="dThanksText" style="margin:0 0 12px"></p>
+        <p style="margin:0 0 12px"><a class="btn" id="dLink" target="_blank" rel="noopener noreferrer">Go to the fundraiser page</a></p>
+        <p class="muted" style="margin:0 0 8px">This site doesn't take payments. Your gift is counted for the volunteer here once an admin confirms it on the fundraiser page.</p>
+        <button class="link" id="dAgain" type="button">Make another donation</button>
+      </div>
+    </div>
+  </div>
   <!-- Signed-in view -->
   <div id="app" hidden>
     <div id="home">
     <div class="card hero"><div>In total we have skied &amp; snowboarded</div><div class="big"><span id="total">0</span> km!</div></div>
+    <div class="card" id="noticeCard" hidden><h2>Heads up</h2><p style="margin:0 0 12px">Display names are now public. Anyone who visits the site, even without logging in, can see them in the list of volunteers people can donate for. Your photo, bio and rides are still only visible to people who log in.</p><button class="btn ghost" id="noticeOk" type="button">Got it</button></div>
+    <div class="card"><h2>Donations</h2>
+      <p style="margin:0 0 12px">We are fundraising for the Alzheimer Society of Canada. If you would like to donate in the name of one of our volunteers, please use our donation form. We'll take you to the fundraiser page afterwards.</p>
+      <button class="btn" id="homeDonate" type="button">Donate</button></div>
     <div class="card" id="reqCard" hidden><h2>Friend requests</h2><ul class="list" id="reqList"></ul></div>
     <div class="card">
       <h2>Log a ride</h2>
@@ -137,11 +169,19 @@ input[type=search]{-webkit-appearance:none;appearance:none}
     <div class="card"><div class="top" style="margin-bottom:8px"><h2 style="margin:0">Riders</h2><select id="ridersSort" aria-label="Sort riders"><option value="recent">Newest sign-ups</option><option value="distance">Most distance</option></select></div><input id="riderSearch" type="search" placeholder="Search all riders by name" autocomplete="off" style="margin-bottom:8px"><p class="muted" id="riderNote" style="margin:0 0 8px">Your friends always show first, then up to 25 more riders. Use the search box to find anyone.</p><ul class="list" id="riders"></ul><p class="muted" id="empty">No riders have signed up yet.</p></div>
     <div class="card"><h2>My rides</h2><ul class="list" id="mine"></ul><p class="muted" id="mineEmpty">You haven't logged any rides yet.</p></div>
     <div class="card" id="adminCard" hidden><h2>Admin: accounts</h2><ul class="list" id="allAccounts"></ul>
-      <h2 style="margin-top:20px">Recently deleted (kept for 3 days)</h2><ul class="list" id="deletedList"></ul><p class="muted" id="deletedEmpty">Nothing deleted recently.</p><p class="muted">Only admin accounts can see this section and delete accounts. Admins can remove any ride, and everyone can remove their own.</p></div>
+      <h2 style="margin-top:20px">Recently deleted (kept for 3 days)</h2><ul class="list" id="deletedList"></ul><p class="muted" id="deletedEmpty">Nothing deleted recently.</p>
+      <h2 style="margin-top:20px">Donation records</h2><p class="muted" id="donSummary"></p><ul class="list" id="donAdmin"></ul><p class="muted" id="donAdminEmpty">No donations recorded yet.</p><p class="muted">Only admin accounts can see this section and delete accounts. Admins can remove any ride, and everyone can remove their own.</p></div>
     </div>
     <div id="profileView" hidden>
       <p><button class="btn ghost" id="back" type="button">&larr; Back</button></p>
       <div class="card" id="profCard"></div>
+      <div class="card" id="donCard" hidden>
+        <h2 id="donTitle">Donations in my name</h2>
+        <div id="donTotals"></div>
+        <ul class="list" id="donList"></ul>
+        <p class="muted" id="donEmpty">No donations yet.</p>
+        <p class="muted">An admin confirms each gift by checking the fundraiser page, so new donations can take a little while to show as confirmed.</p>
+      </div>
       <div class="card" id="editCard" hidden>
         <h2>Edit my profile</h2>
         <form id="editForm">
@@ -229,6 +269,8 @@ input[type=search]{-webkit-appearance:none;appearance:none}
 <script src="config.js"></script>
 <script>
 var C=window.SITE_CONFIG||{};
+// Change this one line if the fundraiser address ever changes
+var DONATE_URL="https://alzheimersocietycanada.crowdchange.ca/158801";
 var $=function(id){return document.getElementById(id)};
 function say(t,kind){var m=$("msg");m.textContent=t||"";m.className="msg"+(kind?" "+kind:"");m.hidden=!t}
 function li(l,r){var e=document.createElement("li"),a=document.createElement("span"),b=document.createElement("span");a.textContent=l;b.textContent=r;e.appendChild(a);e.appendChild(b);return e}
@@ -238,14 +280,14 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   say("Setup needed: open config.js and paste in your Supabase Project URL and publishable key.","err");
 } else {
   var sb=supabase.createClient(C.SUPABASE_URL,C.SUPABASE_KEY);
-  var signup=false,session=null,isAdmin=false,profiles={},lastRides=[],viewing=null,recentShown=25,friends={},links={},ridesSort="recent",ridersSort="recent",totalsBy={},msgs=[],openThread=null,threadCount=0;
+  var signup=false,session=null,isAdmin=false,donations=[],profiles={},lastRides=[],viewing=null,recentShown=25,friends={},links={},ridesSort="recent",ridersSort="recent",totalsBy={},msgs=[],openThread=null,threadCount=0;
 
   function setMode(s){
     signup=s;
     $("authTitle").textContent=s?"Create an account":"Log in";
     $("authBtn").textContent=s?"Sign up":"Log in";
     $("toggle").textContent=s?"Already have an account? Log in":"New here? Create an account";
-    $("nameRow").hidden=!s;$("dname").required=s;
+    $("nameRow").hidden=!s;$("dname").required=s;$("pubRow").hidden=!s;$("pubAck").required=s;
     $("forgotWrap").hidden=s;
     $("pw").autocomplete=s?"new-password":"current-password";
     say("");
@@ -355,6 +397,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     }
     $("editCard").hidden=!mine;
     $("adminAddCard").hidden=!(isAdmin&&!mine);
+    renderDonCard(p,mine);
     var ul=$("profRides");ul.innerHTML="";
     $("profNoRides").hidden=rides.length>0;
     rides.forEach(function(r){
@@ -427,6 +470,8 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     var ps=await sb.from("profiles").select("id,display_name,bio,avatar_url,created_at,deleted_at");
     var fr=await sb.from("friend_links").select("requester,addressee,status");friends={};links={};
     if(!fr.error&&fr.data)fr.data.forEach(function(x){var o=x.requester===session.user.id?x.addressee:x.requester;links[o]=x;if(x.status==="accepted")friends[o]=true});
+    var dn=await sb.from("donations").select("id,volunteer,amount,donor_name,status,created_at").order("created_at",{ascending:false});
+    donations=(dn.error||!dn.data)?[]:dn.data;
     if(rs.error||ps.error){say("Couldn't load rides right now.","err");return}
     var deletedRides=rs.data.filter(function(r){return r.deleted_at}),deletedProfiles=ps.data.filter(function(p){return p.deleted_at});
     rs.data=rs.data.filter(function(r){return !r.deleted_at});ps.data=ps.data.filter(function(p){return !p.deleted_at});
@@ -493,6 +538,22 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
       items.sort(function(a,b){return b.t.localeCompare(a.t)});
       $("deletedEmpty").hidden=items.length>0;
       items.forEach(function(it){var e=li(it.label,"");e.style.alignItems="center";var bt=document.createElement("button");bt.className="btn ghost";bt.textContent=it.btn;bt.style.padding="4px 10px";bt.onclick=it.fn;e.replaceChild(bt,e.lastChild);dl.appendChild(e)});
+      var da=$("donAdmin");da.innerHTML="";
+      var dsorted=donations.slice().sort(function(a,b){return (a.status==="pending"?0:1)-(b.status==="pending"?0:1)||b.created_at.localeCompare(a.created_at)});
+      var cT=0,pT=0;donations.forEach(function(d){var am=Number(d.amount)||0;if(d.status==="confirmed")cT+=am;else pT+=am});
+      $("donSummary").textContent="Confirmed "+money(cT)+" · Waiting to be confirmed "+money(pT)+". Check each one against the donations list on the fundraiser page before confirming.";
+      $("donAdminEmpty").hidden=dsorted.length>0;
+      dsorted.forEach(function(d){
+        var who=d.volunteer?(names[d.volunteer]||"Someone"):"No specific skier";
+        var e=li(who+" · from "+(d.donor_name||"Anonymous")+" · "+new Date(d.created_at).toLocaleDateString([],{month:"short",day:"numeric"}),"");
+        e.style.alignItems="center";
+        var k=document.createElement("span");k.style.cssText="display:flex;align-items:center;gap:8px;white-space:nowrap";
+        var am2=document.createElement("span");am2.textContent=money(d.amount);k.appendChild(am2);
+        if(d.status==="pending"){var cb=document.createElement("button");cb.className="btn";cb.textContent="Confirm";cb.style.padding="4px 10px";cb.onclick=function(){confirmDonation(d.id)};k.appendChild(cb)}
+        else{var ch=document.createElement("span");ch.className="chip ok";ch.textContent="confirmed";k.appendChild(ch)}
+        var rb=document.createElement("button");rb.className="btn ghost";rb.textContent="Remove";rb.style.padding="4px 10px";rb.onclick=function(){removeDonation(d.id)};k.appendChild(rb);
+        e.replaceChild(k,e.lastChild);da.appendChild(e);
+      });
     }
     loadMessages();
     if(viewing)renderProfile();
@@ -790,6 +851,82 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   };
   setInterval(function(){if(session&&!document.hidden)loadMessages()},30000);
 
+  function money(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
+
+  function renderDonCard(p,mine){
+    var showIt=mine||isAdmin;$("donCard").hidden=!showIt;if(!showIt)return;
+    var rows=donations.filter(function(d){return d.volunteer===viewing}),conf=0,pend=0;
+    rows.forEach(function(d){var a=Number(d.amount)||0;if(d.status==="confirmed")conf+=a;else pend+=a});
+    $("donTitle").textContent=mine?"Donations in my name":"Donations in "+p.display_name+"'s name";
+    var t=$("donTotals");t.innerHTML="";
+    var big=document.createElement("div");big.style.cssText="font-size:2rem;font-weight:800;line-height:1.2";big.textContent=money(conf);
+    var sub=document.createElement("div");sub.className="muted";sub.style.marginBottom="8px";sub.textContent="confirmed"+(pend>0?" · "+money(pend)+" waiting to be confirmed":"");
+    t.appendChild(big);t.appendChild(sub);
+    var ul=$("donList");ul.innerHTML="";$("donEmpty").hidden=rows.length>0;
+    rows.forEach(function(d){
+      var e=li((d.donor_name||"Anonymous")+" · "+new Date(d.created_at).toLocaleDateString([],{month:"short",day:"numeric"}),"");
+      e.style.alignItems="center";
+      var k=document.createElement("span");k.style.cssText="display:flex;align-items:center;gap:8px;white-space:nowrap";
+      var am=document.createElement("span");am.textContent=money(d.amount);k.appendChild(am);
+      var ch=document.createElement("span");ch.className="chip"+(d.status==="confirmed"?" ok":"");ch.textContent=d.status==="confirmed"?"confirmed":"pending";k.appendChild(ch);
+      e.replaceChild(k,e.lastChild);ul.appendChild(e);
+    });
+  }
+
+  async function confirmDonation(id){
+    var r=await sb.rpc("confirm_donation",{donation_id:id});
+    if(r.error){say("Couldn't confirm that donation.","err");return}
+    say("Donation confirmed.","ok");refresh();
+  }
+  async function removeDonation(id){
+    if(!confirm("Remove this donation record? This can't be undone."))return;
+    var r=await sb.rpc("delete_donation",{donation_id:id});
+    if(r.error){say("Couldn't remove that donation record.","err");return}
+    say("Donation record removed.","ok");refresh();
+  }
+
+  async function loadVolunteers(){
+    var sel=$("dWho"),cur=sel.value;sel.innerHTML="";
+    function opt(v,t){var o=document.createElement("option");o.value=v;o.textContent=t;sel.appendChild(o)}
+    opt("","Choose one...");
+    var r=await sb.rpc("public_volunteers");
+    if(!r.error&&r.data)r.data.forEach(function(v){opt(v.id,v.display_name)});
+    opt("__none","I'm not donating for a specific skier");
+    sel.value=cur;if(sel.value!==cur)sel.value="";
+  }
+  function resetDonateForm(){$("donateForm").hidden=false;$("dThanks").hidden=true;$("dAmt").value="";$("dName").value="";$("dWho").value=""}
+  function openDonate(){
+    $("authCard").hidden=true;$("app").hidden=true;$("donateView").hidden=false;
+    say("");resetDonateForm();loadVolunteers();window.scrollTo(0,0);
+  }
+  function closeDonate(){
+    $("donateView").hidden=true;say("");
+    if(session){$("app").hidden=false}else{$("authCard").hidden=false}
+  }
+  $("donateBtn").onclick=openDonate;
+  $("loginDonate").onclick=openDonate;
+  $("homeDonate").onclick=openDonate;
+  $("donateBack").onclick=closeDonate;
+  $("dAgain").onclick=function(){say("");resetDonateForm();loadVolunteers()};
+  $("noticeOk").onclick=function(){$("noticeCard").hidden=true;try{localStorage.setItem("shred-public-notice","1")}catch(e){}};
+  $("donateForm").onsubmit=async function(e){
+    e.preventDefault();
+    var who=$("dWho").value;
+    if(!who){say("Please choose who you are donating for.","err");return}
+    var amt=parseFloat($("dAmt").value);
+    if(!(amt>=1&&amt<=100000)){say("Please enter an amount between $1 and $100,000.","err");return}
+    var btn=e.target.querySelector("button[type=submit]");btn.disabled=true;
+    var r=await sb.rpc("submit_donation",{volunteer_id:who==="__none"?null:who,donation_amount:Math.round(amt*100)/100,name_text:$("dName").value.trim()||null});
+    btn.disabled=false;
+    if(r.error){say(r.error.message||"Couldn't save that. Please try again.","err");return}
+    say("");
+    var label=who==="__none"?"":$("dWho").selectedOptions[0].textContent;
+    $("dThanksText").textContent="Thank you! We've noted your planned gift of "+money(amt)+(label?" in the name of "+label:"")+". Next, complete your donation on the fundraiser page. Please enter the same amount"+".";
+    $("dLink").href=DONATE_URL;
+    $("donateForm").hidden=true;$("dThanks").hidden=false;
+    if(session)refresh();
+  };
+
   async function restoreRide(id){
     var r=await sb.rpc("restore_ride",{ride_id:id});
     if(r.error){say("Couldn't restore that ride.","err");return}
@@ -835,7 +972,9 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     var on=!!s;
     if(!on){isAdmin=false;viewing=null}
     $("authCard").hidden=on;$("app").hidden=!on;$("logout").hidden=!on;$("myprof").hidden=!on;$("msgBtn").hidden=!on;if(!on){$("home").hidden=false;$("profileView").hidden=true;$("msgView").hidden=true;openThread=null;msgs=[]}
+    if(!$("donateView").hidden){$("authCard").hidden=true;$("app").hidden=true}
     if(on){
+      try{if(!localStorage.getItem("shred-public-notice"))$("noticeCard").hidden=false}catch(err){$("noticeCard").hidden=false}
       await ensureProfile(s.user);
       isAdmin=false;
       try{var q=await sb.from("admins").select("user_id").eq("user_id",s.user.id).maybeSingle();isAdmin=!!q.data}catch(e){}
