@@ -126,7 +126,7 @@ label.chk{display:flex;align-items:center;font-size:.9rem;color:var(--text)}
     <p><button class="btn ghost" id="donateBack" type="button">&larr; Back</button></p>
     <div class="card">
       <h2>Donations</h2>
-      <p style="margin:0 0 12px">We are fundraising for the Alzheimer Society of Canada. If you would like to donate in the name of one of our volunteers, tell us who it is for and how much you plan to give. Then we'll take you to the fundraiser page to complete your donation.</p>
+      <p id="dIntro" style="margin:0 0 12px">We are fundraising for the Alzheimer Society of Canada. If you would like to donate in the name of one of our volunteers, tell us who it is for and how much you plan to give. Then we'll take you to the fundraiser page to complete your donation.</p>
       <form id="donateForm">
         <div><label for="dWho">Who are you donating for?</label><select id="dWho" required style="width:100%"></select></div>
         <div><label for="dAmt">How much are you donating? (CAD)</label><input id="dAmt" type="number" min="1" max="100000" step="0.01" required placeholder="25.00" inputmode="decimal"></div>
@@ -135,6 +135,8 @@ label.chk{display:flex;align-items:center;font-size:.9rem;color:var(--text)}
       </form>
       <div id="dThanks" hidden>
         <p id="dThanksText" style="margin:0 0 12px"></p>
+        <p style="margin:0 0 12px;font-size:1.25rem;line-height:1.4">By filling out this form, you have not actually donated yet. To make your donation, please press the “Go to the fundraiser page” button below and donate there.</p>
+        <p style="margin:0 0 12px">By pressing the “Go to the fundraiser page” button, you will be sent to our fundraiser page on the Alzheimer Society of Canada's main page. All donations on that page will go directly to the Alzheimer Society of Canada.</p>
         <p style="margin:0 0 12px"><a class="btn" id="dLink" target="_blank" rel="noopener noreferrer">Go to the fundraiser page</a></p>
         <p class="muted" style="margin:0 0 8px">This site doesn't take payments. Your gift is counted for the volunteer here once an admin confirms it on the fundraiser page.</p>
         <button class="link" id="dAgain" type="button">Make another donation</button>
@@ -900,7 +902,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     opt("__none","I'm not donating for a specific skier");
     sel.value=cur;if(sel.value!==cur)sel.value="";
   }
-  function resetDonateForm(){$("donateForm").hidden=false;$("dThanks").hidden=true;$("dAmt").value="";$("dName").value="";$("dWho").value=""}
+  function resetDonateForm(){$("dIntro").hidden=false;$("donateForm").hidden=false;$("dThanks").hidden=true;$("dAmt").value="";$("dName").value="";$("dWho").value=""}
   function openDonate(){
     $("authCard").hidden=true;$("app").hidden=true;$("donateView").hidden=false;
     say("");resetDonateForm();loadVolunteers();window.scrollTo(0,0);
@@ -927,9 +929,9 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     if(r.error){say(r.error.message||"Couldn't save that. Please try again.","err");return}
     say("");
     var label=who==="__none"?"":$("dWho").selectedOptions[0].textContent;
-    $("dThanksText").textContent="Thank you! We've noted your planned gift of "+money(amt)+(label?" in the name of "+label:"")+". Next, complete your donation on the fundraiser page. Please enter the same amount"+".";
+    $("dThanksText").textContent="Thank you! We've noted your planned gift of "+money(amt)+(label?" in the name of "+label:"")+". Please enter the same amount on the fundraiser page.";
     $("dLink").href=DONATE_URL;
-    $("donateForm").hidden=true;$("dThanks").hidden=false;
+    $("dIntro").hidden=true;$("donateForm").hidden=true;$("dThanks").hidden=false;
     if(session)refresh();
   };
 
