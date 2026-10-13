@@ -370,7 +370,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   function clearPhoto(){cropBlob=null;$("pphoto").value="";$("photoPreview").innerHTML=""}
 
   function openProfile(id){
-    viewing=id;
+    leaveDonate();viewing=id;
     if(id===session.user.id){var p=profiles[id]||{};$("pname").value=p.display_name||"";$("pbio").value=p.bio||"";clearPhoto()}
     $("aDate").valueAsDate=new Date();say("");renderProfile();window.scrollTo(0,0);
   }
@@ -829,8 +829,9 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     }
   }
 
+  function leaveDonate(){if(!$("donateView").hidden){$("donateView").hidden=true;if(session)$("app").hidden=false}}
   function openMessages(){
-    viewing=null;openThread=null;
+    leaveDonate();viewing=null;openThread=null;
     $("home").hidden=true;$("profileView").hidden=true;$("msgView").hidden=false;
     $("msgFind").value="";say("");renderMessages();window.scrollTo(0,0);loadMessages();
   }
