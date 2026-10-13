@@ -153,8 +153,8 @@ label.chk{display:flex;align-items:center;font-size:.9rem;color:var(--text)}
     <div class="card">
       <h2>Log a ride</h2>
       <form id="rideForm">
-        <p class="muted" style="margin:0 0 4px"><strong>Privacy note:</strong> by importing a ride file, you are letting us know the approximate location where you skied or snowboarded. We look up the nearest town (using OpenStreetMap's free service) and save only that, not your GPS track. If you'd rather not share this, email us at <strong>[email address coming soon]</strong> and we'll enter your ride for you manually.</p>
-        <div><label for="gpx">Import a GPX, TCX, KML or KMZ file from Slopes, Strava, Garmin or another tracker</label><input id="gpx" type="file"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes: open a recording, tap the &#8943; menu, choose Export As, then GPX or KMZ. Other apps have their own export. The file is read in your browser and is not uploaded; only the distance, date and town are saved.</p></div>
+        <p class="muted" style="margin:0 0 4px"><strong>Privacy note:</strong> by using the ride file, we can see the approximate location where you skied. We only save the nearest town, not where you actually were. If you'd rather not share this, email us at <strong>[email address coming soon]</strong> and we'll enter your ride for you manually.</p>
+        <div><label for="gpx">Import a GPX, TCX, KML or KMZ file from Slopes, Strava, Garmin or another tracker</label><input id="gpx" type="file"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes: open a recording, tap the &#8943; menu, choose Export As, then GPX or KMZ. Other apps have their own export. Only the distance and date of your ride, and the town you were near are saved.</p></div>
         <div><label for="km">Distance (km, filled in from your file)</label><input id="km" type="number" readonly placeholder="Import a file to fill this in"></div>
         <div id="actualRow" hidden>
           <label for="actualKm">Actual distance from your tracking app (optional, must be within 20 km of the estimate)</label>
