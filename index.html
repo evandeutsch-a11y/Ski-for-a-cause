@@ -155,7 +155,7 @@ label.chk{display:flex;align-items:center;font-size:.9rem;color:var(--text)}
     <div class="card">
       <h2>Log a ride</h2>
       <form id="rideForm">
-        <p class="muted" style="margin:0 0 4px"><strong>Privacy note:</strong> by using the ride file, we can see the approximate location where you skied. We only save the nearest town, not where you actually were. If you'd rather not share this, email us at <strong>[email address coming soon]</strong>, or message Evan(admin) insite, and we'll enter your ride for you manually.</p>
+        <p class="muted" style="margin:0 0 4px"><strong>Privacy note:</strong> by using the ride file, we can see the approximate location where you skied. We only save the nearest town, not where you actually were. If you'd rather not share this, feel free to <button class="link" id="msgTeamLink" type="button">message team leader Evan (Founder)</button> and we'll enter your ride for you manually.</p>
         <div><label for="gpx">Import a GPX, TCX, KML or KMZ file from Slopes, Strava, Garmin or another tracker</label><input id="gpx" type="file"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes: open a recording, tap the &#8943; menu, choose Export As, then GPX or KMZ. Other apps have their own export. Only the distance and date of your ride, and the town you were near are saved.</p></div>
         <div><label for="km">Distance (km, filled in from your file)</label><input id="km" type="number" readonly placeholder="Import a file to fill this in"></div>
         <div id="actualRow" hidden>
@@ -210,6 +210,7 @@ label.chk{display:flex;align-items:center;font-size:.9rem;color:var(--text)}
         <h2>Messages</h2>
         <input id="msgFind" type="search" placeholder="Start a new message: search by name" autocomplete="off">
         <ul class="list" id="msgFindList" style="margin:6px 0 10px"></ul>
+        <div id="adminContact" hidden><h2 style="font-size:1rem;margin-top:12px">Message someone on our team</h2><ul class="list" id="adminList"></ul></div>
         <ul class="list" id="convList"></ul>
         <p class="muted" id="convEmpty">No messages yet.</p>
         <p class="muted" id="msgRule"></p>
@@ -282,7 +283,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
   say("Setup needed: open config.js and paste in your Supabase Project URL and publishable key.","err");
 } else {
   var sb=supabase.createClient(C.SUPABASE_URL,C.SUPABASE_KEY);
-  var signup=false,session=null,isAdmin=false,donations=[],profiles={},lastRides=[],viewing=null,recentShown=25,friends={},links={},ridesSort="recent",ridersSort="recent",totalsBy={},msgs=[],openThread=null,threadCount=0;
+  var signup=false,session=null,isAdmin=false,donations=[],profiles={},lastRides=[],viewing=null,recentShown=25,friends={},links={},ridesSort="recent",ridersSort="recent",totalsBy={},msgs=[],openThread=null,threadCount=0,adminIds={};
 
   function setMode(s){
     signup=s;
@@ -472,6 +473,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     var ps=await sb.from("profiles").select("id,display_name,bio,avatar_url,created_at,deleted_at");
     var fr=await sb.from("friend_links").select("requester,addressee,status");friends={};links={};
     if(!fr.error&&fr.data)fr.data.forEach(function(x){var o=x.requester===session.user.id?x.addressee:x.requester;links[o]=x;if(x.status==="accepted")friends[o]=true});
+    var ad=await sb.rpc("admin_ids");adminIds={};if(!ad.error&&ad.data)ad.data.forEach(function(x){adminIds[x.admin_id]=true});
     var dn=await sb.from("donations").select("id,volunteer,amount,donor_name,status,created_at,deleted_at").order("created_at",{ascending:false});
     var alld=(dn.error||!dn.data)?[]:dn.data;donations=alld.filter(function(d){return !d.deleted_at});var deletedDonations=alld.filter(function(d){return d.deleted_at});
     if(rs.error||ps.error){say("Couldn't load rides right now.","err");return}
@@ -754,7 +756,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     say(accept?"Friend request accepted.":"Friend request declined.","ok");refresh();
   }
 
-  function canMessage(id){return isAdmin||!!friends[id]}
+  function canMessage(id){return isAdmin||!!friends[id]||!!adminIds[id]}
   function pname(id){return profiles[id]?profiles[id].display_name:"Deleted account"}
   function fmtTime(ts){var d=new Date(ts);return d.toDateString()===new Date().toDateString()?d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):d.toLocaleDateString([],{month:"short",day:"numeric"})}
 
@@ -784,7 +786,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
 
   function renderMessages(){
     var me=session.user.id;
-    $("msgRule").textContent=isAdmin?"As an admin, you can message anyone.":"You can message your friends. Add friends from a rider's profile.";
+    $("msgRule").textContent=isAdmin?"As an admin, you can message anyone.":"You can message your friends and our team. Add friends from a rider's profile.";
     if(openThread===null){
       $("convCard").hidden=false;$("threadCard").hidden=true;
       var by={};
@@ -804,10 +806,14 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
         if(c.unread){var pl=document.createElement("span");pl.className="pill";pl.textContent=c.unread;r.appendChild(pl)}
         e.appendChild(l);e.appendChild(r);e.onclick=function(){openThreadWith(c.id)};cl.appendChild(e);
       });
+      var al=$("adminList");al.innerHTML="";
+      var adm=isAdmin?[]:Object.keys(adminIds).filter(function(id){return id!==me&&profiles[id]});
+      $("adminContact").hidden=adm.length===0;
+      adm.forEach(function(id){al.appendChild(personRow(id,"Message",function(){openThreadWith(id)}))});
       var term=$("msgFind").value.trim().toLowerCase(),fl=$("msgFindList");fl.innerHTML="";
       if(term){
         var found=Object.keys(profiles).filter(function(id){return id!==me&&canMessage(id)&&(profiles[id].display_name||"").toLowerCase().indexOf(term)!==-1}).slice(0,8);
-        if(!found.length){var none=document.createElement("li");none.className="muted";none.textContent=isAdmin?"No riders match that name.":"No friends match that name. You can only message friends.";fl.appendChild(none)}
+        if(!found.length){var none=document.createElement("li");none.className="muted";none.textContent=isAdmin?"No riders match that name.":"No friends or team members match that name. You can only message friends and our team.";fl.appendChild(none)}
         found.forEach(function(id){fl.appendChild(personRow(id,"Message",function(){openThreadWith(id)}))});
       }
     } else {
@@ -825,7 +831,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
       if(conv.length!==threadCount){threadCount=conv.length;th.scrollTop=th.scrollHeight}
       var ok=!!p&&canMessage(other);
       $("msgForm").hidden=!ok;$("msgBlock").hidden=ok;
-      $("msgBlock").textContent=p?"You can only send messages to your friends. Send a friend request from their profile.":"This account is no longer available.";
+      $("msgBlock").textContent=p?"You can only send messages to your friends and our team. Send a friend request from their profile.":"This account is no longer available.";
     }
   }
 
@@ -841,6 +847,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     sb.rpc("mark_messages_read",{other:id}).then(function(){loadMessages()});
   }
   $("msgBtn").onclick=openMessages;
+  $("msgTeamLink").onclick=openMessages;
   $("msgBack").onclick=function(){openThread=null;$("msgView").hidden=true;$("home").hidden=false;say("")};
   $("threadBack").onclick=function(){openThread=null;renderMessages()};
   $("msgFind").oninput=renderMessages;
