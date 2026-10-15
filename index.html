@@ -155,15 +155,19 @@ label.chk{display:flex;align-items:center;font-size:.9rem;color:var(--text)}
     <div class="card">
       <h2>Log a ride</h2>
       <form id="rideForm">
-        <p class="muted" style="margin:0 0 4px"><strong>Privacy note:</strong> by using the ride file, we can see the approximate location where you skied. We only save the nearest town, not where you actually were. If you'd rather not share this, feel free to <button class="link" id="msgTeamLink" type="button">message team leader Evan (Founder)</button> and we'll enter your ride for you manually.</p>
-        <div><label for="gpx">Import a GPX, TCX, KML or KMZ file from Slopes, Strava, Garmin or another tracker</label><input id="gpx" type="file"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes: open a recording, tap the &#8943; menu, choose Export As, then GPX or KMZ. Other apps have their own export. Only the distance and date of your ride, and the town you were near are saved.</p></div>
+        <p class="muted" style="margin:0 0 4px"><strong>Privacy note:</strong> by using the ride file, we can see the approximate location where you skied. If you'd rather not share this, feel free to <button class="link" id="msgTeamLink" type="button">message team leader Evan (Founder)</button> and we'll enter your ride for you manually.</p>
+        <div><label for="gpx">Import a GPX, TCX, KML or KMZ file from Slopes, Strava, Garmin or another tracker</label><input id="gpx" type="file"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes: open a recording, tap the &#8943; menu, choose Export As, then GPX or KMZ. Other apps have their own export. Only the distance and date of your ride are saved. A town is only saved if you tick the box below.</p></div>
         <div><label for="km">Distance (km, filled in from your file)</label><input id="km" type="number" readonly placeholder="Import a file to fill this in"></div>
         <div id="actualRow" hidden>
           <label for="actualKm">Actual distance from your tracking app (optional, must be within 20 km of the estimate)</label>
           <input id="actualKm" type="number" min="0.1" max="500" step="0.1" placeholder="Leave blank to use the estimate">
         </div>
         <div><label for="date">Date (from your file)</label><input id="date" type="date" disabled></div>
-        <div><label for="note">Location (looked up from your file)</label><input id="note" readonly placeholder="Filled in automatically"></div>
+        <div><label for="note">Location (optional)</label><input id="note" maxlength="80" placeholder="Where did you ride? (optional)"></div>
+        <div>
+          <p class="muted" style="margin:0 0 6px">If you tick the box below, we will save the nearest town to where you skied with each ride you import, now and in the future, and fill in the location for you. You can untick it at any time.</p>
+          <label class="chk"><input type="checkbox" id="saveLoc"> Automatically save the nearest town with my rides</label>
+        </div>
         <button class="btn" type="submit">Log this ride</button>
       </form>
     </div>
@@ -470,7 +474,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
 
   async function refresh(){
     var rs=await sb.from("rides").select("id,user_id,km,ride_date,note,created_at,deleted_at").order("ride_date",{ascending:false}).order("created_at",{ascending:false});
-    var ps=await sb.from("profiles").select("id,display_name,bio,avatar_url,created_at,deleted_at");
+    var ps=await sb.from("profiles").select("id,display_name,bio,avatar_url,created_at,deleted_at,save_location");
     var fr=await sb.from("friend_links").select("requester,addressee,status");friends={};links={};
     if(!fr.error&&fr.data)fr.data.forEach(function(x){var o=x.requester===session.user.id?x.addressee:x.requester;links[o]=x;if(x.status==="accepted")friends[o]=true});
     var ad=await sb.rpc("admin_ids");adminIds={};if(!ad.error&&ad.data)ad.data.forEach(function(x){adminIds[x.admin_id]=true});
@@ -480,6 +484,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     var deletedRides=rs.data.filter(function(r){return r.deleted_at}),deletedProfiles=ps.data.filter(function(p){return p.deleted_at});
     rs.data=rs.data.filter(function(r){return !r.deleted_at});ps.data=ps.data.filter(function(p){return !p.deleted_at});
     var names={};profiles={};lastRides=rs.data;ps.data.forEach(function(p){names[p.id]=p.display_name;profiles[p.id]=p});
+    if(profiles[session.user.id])$("saveLoc").checked=!!profiles[session.user.id].save_location;
     var sum=0,by={};
     rs.data.forEach(function(r){var k=Number(r.km)||0;sum+=k;by[r.user_id]=(by[r.user_id]||0)+k});
     $("total").textContent=r1(sum).toLocaleString();
@@ -689,11 +694,15 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     var text=(u8[0]===0x50&&u8[1]===0x4b)?await unzipFirstKml(buf):new TextDecoder().decode(u8);
     return analyzeText(text);
   }
-  var gpxEst=null,gpxLoc=null,locBusy=false,lookupId=0,gpxHelp=$("gpxInfo").textContent;
-  function clearImport(){lookupId++;locBusy=false;gpxEst=null;gpxLoc=null;$("km").value="";$("date").value="";$("note").value="";$("note").placeholder="Filled in automatically";$("actualRow").hidden=true;$("actualKm").value=""}
-  function resetGpx(){clearImport();$("gpx").value="";$("gpxInfo").textContent=gpxHelp}
+  var gpxEst=null,gpxLat=null,gpxLon=null,autoLoc="",locBusy=false,lookupId=0,gpxHelp=$("gpxInfo").textContent,NOTE_HINT="Where did you ride? (optional)";
+  function clearImport(full){
+    lookupId++;locBusy=false;gpxEst=null;gpxLat=null;gpxLon=null;$("km").value="";$("date").value="";$("actualRow").hidden=true;$("actualKm").value="";
+    if(full||(autoLoc&&$("note").value===autoLoc))$("note").value="";
+    autoLoc="";$("note").placeholder=NOTE_HINT;
+  }
+  function resetGpx(){clearImport(true);$("gpx").value="";$("gpxInfo").textContent=gpxHelp}
   async function lookupLocation(lat,lon){
-    var token=++lookupId;locBusy=true;gpxLoc=null;$("note").value="Looking up location...";
+    var token=++lookupId;locBusy=true;$("note").placeholder="Looking up the nearest town...";
     try{
       var ctl=new AbortController(),tm=setTimeout(function(){ctl.abort()},7000);
       var res=await fetch("https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=en&lat="+lat.toFixed(2)+"&lon="+lon.toFixed(2),{signal:ctl.signal});
@@ -702,11 +711,11 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
       var place=ad.village||ad.town||ad.city||ad.municipality||ad.county||ad.state_district||"";
       var label=[place,ad.state||ad.region||"",ad.country||""].filter(function(x,i,arr){return x&&arr.indexOf(x)===i}).join(", ");
       if(token!==lookupId)return;
-      gpxLoc=label||null;$("note").value=label;
-      if(!label)$("note").placeholder="Location not found";
+      if(label&&!$("note").value.trim()){$("note").value=label;autoLoc=label}
+      $("note").placeholder=label?NOTE_HINT:"Town not found. You can type a location.";
     }catch(e){
       if(token!==lookupId)return;
-      gpxLoc=null;$("note").value="";$("note").placeholder="Location couldn't be looked up";
+      $("note").placeholder="Couldn't look up the town. You can type a location.";
     }
     finally{if(token===lookupId)locBusy=false}
   }
@@ -720,7 +729,8 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
       gpxEst=r1(est);$("km").value=gpxEst;$("km").readOnly=true;$("actualRow").hidden=false;$("actualKm").value="";
       var dd=new Date(r.first||Date.now());$("date").value=dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+"-"+String(dd.getDate()).padStart(2,"0");
       info.textContent="Estimated "+r1(est)+" km on the snow (lifts left out). The whole file is "+r1(r.all)+" km including lifts. If you know the exact figure from your app, enter it below (it must be within 20 km of this estimate).";
-      lookupLocation(r.lat,r.lon);
+      gpxLat=r.lat;gpxLon=r.lon;
+      if($("saveLoc").checked&&!$("note").value.trim())lookupLocation(r.lat,r.lon);
     }catch(err){clearImport();info.textContent="Couldn't read \""+(f&&f.name)+"\" as a ride file. Please export it from your tracking app as GPX, TCX, KML or KMZ and try again."}
   };
 
@@ -732,6 +742,22 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     b.disabled=false;
     if(r.error){say("Couldn't add that ride.","err");return}
     say("Ride added.","ok");$("aKm").value="";$("aNote").value="";refresh();
+  };
+
+  $("saveLoc").onchange=async function(){
+    var on=this.checked,box=this;
+    var r=await sb.from("profiles").update({save_location:on}).eq("id",session.user.id);
+    if(r.error){box.checked=!on;say("Couldn't save that setting. Please try again.","err");return}
+    if(profiles[session.user.id])profiles[session.user.id].save_location=on;
+    if(on){
+      say("From now on we'll save the nearest town with your imported rides. You can untick this at any time.","ok");
+      if(gpxEst!==null&&gpxLat!==null&&!$("note").value.trim())lookupLocation(gpxLat,gpxLon);
+    } else {
+      lookupId++;locBusy=false;$("note").placeholder=NOTE_HINT;
+      if(autoLoc&&$("note").value===autoLoc)$("note").value="";
+      autoLoc="";
+      say("We won't look up or save a town automatically. You can still type a location yourself.","ok");
+    }
   };
 
   $("moreRides").onclick=function(){recentShown+=25;refresh()};
@@ -977,7 +1003,7 @@ if(!C.SUPABASE_URL||C.SUPABASE_URL.indexOf("PASTE")===0){
     }
     if(!(v>0&&v<=500))return;
     var b=e.target.querySelector("button");b.disabled=true;
-    var r=await sb.from("rides").insert({km:v,ride_date:$("date").value,note:gpxLoc?gpxLoc.slice(0,80):null});
+    var r=await sb.from("rides").insert({km:v,ride_date:$("date").value,note:$("note").value.trim().slice(0,80)||null});
     b.disabled=false;
     if(r.error){say("Couldn't save that ride. Please try again.","err");return}
     say("");$("km").value="";$("note").value="";resetGpx();refresh();
