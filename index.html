@@ -113,7 +113,7 @@ label.chk{display:flex;align-items:center;font-size:.9rem;color:var(--text)}
       <div id="nameRow" hidden><label for="dname">Display name</label><input id="dname" maxlength="40" autocomplete="nickname"></div>
       <div><label for="email">Email</label><input id="email" type="email" required autocomplete="email"></div>
       <div><label for="pw">Password (at least 8 characters)</label><input id="pw" type="password" minlength="8" required autocomplete="current-password"></div>
-      <div id="pubRow" hidden><p class="muted" style="margin:0 0 8px">Your display name is public. Anyone who visits the site, even without logging in, can see it in the list of volunteers people can donate for. Your photo, bio and rides are only visible to people who log in.</p><label class="chk"><input type="checkbox" id="pubAck"> I understand my display name will be public</label></div>
+      <div id="pubRow" hidden><p class="muted" style="margin:0 0 8px">Your display name is public. Anyone who visits the site, even without logging in, can see it in the list of participants people can donate for. Your photo, bio and rides are only visible to people who log in.</p><label class="chk"><input type="checkbox" id="pubAck"> I understand my display name will be public</label></div>
       <button class="btn" id="authBtn" type="submit">Log in</button>
     </form>
     <p class="muted" style="margin-top:12px"><button class="link" id="toggle" type="button">New here? Create an account</button>
@@ -125,11 +125,11 @@ label.chk{display:flex;align-items:center;font-size:.9rem;color:var(--text)}
     <p><button class="btn ghost" id="donateBack" type="button">&larr; Back</button></p>
     <div class="card">
       <h2>Donations</h2>
-      <p id="dIntro" style="margin:0 0 12px">We are fundraising for the Alzheimer Society of Canada. If you would like to donate in the name of one of our volunteers, tell us who it is for and how much you plan to give. Then we'll take you to our fundraiser page directly on the Alzheimer Society of Canada's website to complete your donation.</p>
+      <p id="dIntro" style="margin:0 0 12px">We are fundraising for the Alzheimer Society of Canada. If you would like to donate in the name of one of our participants, tell us who it is for and how much you plan to give. Then we'll take you to our fundraiser page directly on the Alzheimer Society of Canada's website to complete your donation.</p>
       <form id="donateForm">
         <div><label for="dWho">Who are you donating for?</label><select id="dWho" required style="width:100%"></select></div>
         <div><label for="dAmt">How much are you donating? (CAD)</label><input id="dAmt" type="number" min="1" max="100000" step="0.01" required placeholder="25.00" inputmode="decimal"></div>
-        <div><label for="dName">Your name (optional, shown to the volunteer so they can thank you)</label><input id="dName" maxlength="60" autocomplete="name"></div>
+        <div><label for="dName">Your name (optional, shown to the participant so they can thank you)</label><input id="dName" maxlength="60" autocomplete="name"></div>
         <button class="btn" type="submit">Continue to donate</button>
       </form>
       <div id="dThanks" hidden>
@@ -137,7 +137,7 @@ label.chk{display:flex;align-items:center;font-size:.9rem;color:var(--text)}
         <p style="margin:0 0 12px;font-size:1.25rem;line-height:1.4">By filling out this form, you have not actually donated yet. To make your donation, please press the “Go to the fundraiser page” button below and donate there.</p>
         <p style="margin:0 0 12px">By pressing the “Go to the fundraiser page” button, you will be sent to our fundraiser page on the Alzheimer Society of Canada's main page. All donations on that page will go directly to the Alzheimer Society of Canada.</p>
         <p style="margin:0 0 12px"><a class="btn" id="dLink" target="_blank" rel="noopener noreferrer">Go to the fundraiser page</a></p>
-        <p class="muted" style="margin:0 0 8px">This site doesn't take payments. Your gift is counted for the volunteer here once an admin confirms it on the fundraiser page.</p>
+        <p class="muted" style="margin:0 0 8px">This site doesn't take payments. Your gift is counted for the participant here once an admin confirms it on the fundraiser page.</p>
         <button class="link" id="dAgain" type="button">Make another donation</button>
       </div>
     </div>
