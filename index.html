@@ -125,7 +125,7 @@ label.chk{display:flex;align-items:center;font-size:.9rem;color:var(--text)}
     <p><button class="btn ghost" id="donateBack" type="button">&larr; Back</button></p>
     <div class="card">
       <h2>Donations</h2>
-      <p id="dIntro" style="margin:0 0 12px">We are fundraising for the Alzheimer Society of Canada. If you would like to donate in the name of one of our volunteers, tell us who it is for and how much you plan to give. Then we'll take you to the fundraiser page to complete your donation.</p>
+      <p id="dIntro" style="margin:0 0 12px">We are fundraising for the Alzheimer Society of Canada. If you would like to donate in the name of one of our volunteers, tell us who it is for and how much you plan to give. Then we'll take you to our fundraiser page directly on the Alzheimer Society of Canada's website to complete your donation.</p>
       <form id="donateForm">
         <div><label for="dWho">Who are you donating for?</label><select id="dWho" required style="width:100%"></select></div>
         <div><label for="dAmt">How much are you donating? (CAD)</label><input id="dAmt" type="number" min="1" max="100000" step="0.01" required placeholder="25.00" inputmode="decimal"></div>
@@ -146,16 +146,16 @@ label.chk{display:flex;align-items:center;font-size:.9rem;color:var(--text)}
   <div id="app" hidden>
     <div id="home">
     <div class="card hero"><div>In total we have skied &amp; snowboarded</div><div class="big"><span id="total">0</span> km!</div></div>
-    <div class="card" id="noticeCard" hidden><h2>Heads up</h2><p style="margin:0 0 12px">Display names are now public. Anyone who visits the site, even without logging in, can see them in the list of volunteers people can donate for. Your photo, bio and rides are still only visible to people who log in.</p><button class="btn ghost" id="noticeOk" type="button">Got it</button></div>
+    <div class="card" id="noticeCard" hidden><h2>Heads up</h2><p style="margin:0 0 12px">Display names are now public. Anyone who visits the site, even without logging in, can see them when donating. Your photo, bio and rides are still only visible to people who log in.</p><button class="btn ghost" id="noticeOk" type="button">Got it</button></div>
     <div class="card"><h2>Donations</h2>
-      <p style="margin:0 0 12px">We are fundraising for the Alzheimer Society of Canada. If you would like to donate in the name of one of our volunteers, please use our donation form. We'll take you to the fundraiser page afterwards.</p>
+      <p style="margin:0 0 12px">We are fundraising for the Alzheimer Society of Canada. If you would like to donate in the name of one of our participants, please use our donation form. We'll take you to the fundraiser page afterwards.</p>
       <button class="btn" id="homeDonate" type="button">Donate</button></div>
     <div class="card" id="reqCard" hidden><h2>Friend requests</h2><ul class="list" id="reqList"></ul></div>
     <div class="card">
       <h2>Log a ride</h2>
       <form id="rideForm">
         <p class="muted" style="margin:0 0 4px"><strong>Privacy note:</strong> by using the ride file, we can see the approximate location where you skied. If you'd rather not share this, feel free to <button class="link" id="msgTeamLink" type="button">message team leader Evan (Founder)</button> and we'll enter your ride for you manually.</p>
-        <div><label for="gpx">Import a GPX, TCX, KML or KMZ file from Slopes, Strava, Garmin or another tracker</label><input id="gpx" type="file"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes: open a recording, tap the &#8943; menu, choose Export As, then GPX or KMZ. Other apps have their own export. Only the distance and date of your ride are saved. A town is only saved if you tick the box below.</p></div>
+        <div><label for="gpx">Import a GPX, TCX, KML or KMZ file from preferably Slopes, but other trackers work as long as they are the same file type.</label><input id="gpx" type="file"><p class="muted" id="gpxInfo" style="margin:6px 0 0">In Slopes: open a recording, tap the &#8943; menu, choose Export As, then GPX or KMZ.</p></div>
         <div><label for="km">Distance (km, filled in from your file)</label><input id="km" type="number" readonly placeholder="Import a file to fill this in"></div>
         <div id="actualRow" hidden>
           <label for="actualKm">Actual distance from your tracking app (optional, must be within 20 km of the estimate)</label>
@@ -164,7 +164,7 @@ label.chk{display:flex;align-items:center;font-size:.9rem;color:var(--text)}
         <div><label for="date">Date (from your file)</label><input id="date" type="date" disabled></div>
         <div><label for="note">Location (optional)</label><input id="note" maxlength="80" placeholder="Where did you ride? (optional)"></div>
         <div>
-          <p class="muted" style="margin:0 0 6px">If you tick the box below, we will save the nearest town to where you skied with each ride you import, now and in the future, and fill in the location for you. You can untick it at any time.</p>
+          <p class="muted" style="margin:0 0 6px">If you tick the box below, we will save the nearest town to where you skied with each ride you import. You can untick it at any time.</p>
           <label class="chk"><input type="checkbox" id="saveLoc"> Automatically save the nearest town with my rides</label>
         </div>
         <button class="btn" type="submit">Log this ride</button>
@@ -265,7 +265,7 @@ label.chk{display:flex;align-items:center;font-size:.9rem;color:var(--text)}
 </svg>
 <div id="cropModal" class="modal" hidden><div class="modalBox">
   <h2>Adjust your photo</h2>
-  <p class="muted">Drag the photo to move it and use the slider to zoom. The circle shows what others will see.</p>
+  <p class="muted">Drag the photo to move it and use the slider to zoom. Whatever is within the circle, other participants will also be able to see.</p>
   <div class="cropWrap"><canvas id="cropCanvas" width="300" height="300"></canvas><div class="cropMask"></div></div>
   <input id="zoom" type="range" min="1" max="4" step="0.01" value="1" style="margin-top:12px">
   <div style="display:flex;gap:8px;margin-top:12px"><button class="btn" id="cropOk" type="button">Use this photo</button><button class="btn ghost" id="cropCancel" type="button">Cancel</button></div>
